@@ -26,6 +26,7 @@ from ctrl_ai.core.rows import break_glass_row, decision_row
 from ctrl_ai.core.scores import Score
 from ctrl_ai.core.state import RedisState
 from ctrl_ai.detect import masking
+from ctrl_ai.detect.detectors import Scans
 from ctrl_ai.detect.extract import (
     detect_endpoint,
     is_claude_code,
@@ -152,7 +153,11 @@ class Engine:
             ctx.identity = identity
         ctx.route_hint = route or None
         try:
-            policy = self._deterministic(data, call_type, ctx)
+            # One snapshot of the teams and the catalogue for the whole request.
+            teams, catalogue = self.teams.current(), self.catalogue.current()
+            # The request's detection passes: each text is scanned once and nothing outlives the call.
+            scans = Scans()
+            policy = self._deterministic(data, call_type, ctx, teams, catalogue, scans)
             ctx.policy = policy
             if ctx.decision != "block" and policy.schema_version == 2:
                 status = self.outage.status(policy.semantic_outage)
@@ -161,10 +166,10 @@ class Engine:
                 effects.cap_timeout(data, policy)
                 evaluator.apply_loop(ctx, await self._check_loop(ctx, data, policy))
             if ctx.decision not in ("block", "throttle"):
-                await self._apply_budget(ctx, data)
+                await self._apply_budget(ctx, data, teams, catalogue)
             if ctx.decision not in ("block", "throttle") and ctx.mask_plan == "rewrite":
                 await effects.rewrite_request(
-                    ctx, data, policy, self._masker(ctx, policy), self.state, self.masking_secret
+                    ctx, data, policy, self._masker(ctx, policy, scans), self.state, self.masking_secret
                 )
         except Exception as exc:
             self._fail_open(ctx, exc)
@@ -250,7 +255,7 @@ class Engine:
             ctx.mode = policy.effective_mode(ctx.profile)
             ctx.policy_version = policy.version
             ctx.pieces = [Piece(text, source)]
-            self._check_pieces(ctx, policy)
+            self._check_pieces(ctx, policy, Scans())
             decision = "block" if ctx.decision == "block" else ("flag" if ctx.flagged else "allow")
             result.update(
                 decision=decision,
@@ -265,7 +270,15 @@ class Engine:
 
     # ------------------------------------------------------------------ deterministic steps
 
-    def _deterministic(self, data: dict, call_type: str | None, ctx: RequestContext) -> Policy:
+    def _deterministic(
+        self,
+        data: dict,
+        call_type: str | None,
+        ctx: RequestContext,
+        teams: Teams,
+        catalogue: Catalogue,
+        scans: Scans,
+    ) -> Policy:
         """Extract the newest turn, resolve profile and route, detect, decide, plan masking."""
         model = data.get("model")
         ctx.endpoint = detect_endpoint(data, call_type)
@@ -284,19 +297,23 @@ class Engine:
         )
         ctx.route = ctx.route_hint or route_of(data)
         self._apply_break_glass(ctx, data, policy)
-        self._check_pieces(ctx, policy)
+        self._check_pieces(ctx, policy, scans)
         evaluator.plan_masking(ctx, policy, has_secret=bool(self.masking_secret))
         ctx.semantic_texts = detectors.semantic_texts(ctx.pieces, policy)
         ctx.text_chars = sum(len(t) for t in ctx.semantic_texts.values())
-        effects.mask_semantic_copy(ctx, self._masker(ctx, policy))
+        effects.mask_semantic_copy(ctx, self._masker(ctx, policy, scans))
         if ctx.decision != "block":
-            evaluator.apply_governance(ctx, self.teams.current(), self.catalogue.current())
+            evaluator.apply_governance(ctx, teams, catalogue)
         return policy
 
-    def _check_pieces(self, ctx: RequestContext, policy: Policy) -> None:
+    def _check_pieces(self, ctx: RequestContext, policy: Policy, scans: Scans) -> None:
         """Detectors over ``ctx.pieces``, then the block or flag decision."""
         found = detectors.detect(
-            ctx.pieces, policy, self._feed(), block_hidden=ctx.profile.semantic_action == "block"
+            ctx.pieces,
+            policy,
+            self._feed(),
+            block_hidden=ctx.profile.semantic_action == "block",
+            scans=scans,
         )
         ctx.pieces, ctx.findings, ctx.normalisation = found.pieces, found.findings, found.normalisation
         evaluator.apply_findings(ctx)
@@ -307,9 +324,9 @@ class Engine:
         except Exception:
             return None
 
-    def _masker(self, ctx: RequestContext, policy: Policy) -> masking.Masker:
+    def _masker(self, ctx: RequestContext, policy: Policy, scans: Scans) -> masking.Masker:
         entities = masking.detector_entities(policy.masking.get("entities") or ())
-        return masking.Masker(entities, ctx.session or "none", self.masking_secret)
+        return masking.Masker(entities, ctx.session or "none", self.masking_secret, scans)
 
     def _apply_break_glass(self, ctx: RequestContext, data: dict, policy: Policy) -> None:
         """A valid x-ctrl-ai-break-glass token relaxes the controls it names."""
@@ -345,12 +362,13 @@ class Engine:
             self.state, ctx.session, latest_prompt_text(data), tool_call_signature(data), policy.loops
         )
 
-    async def _apply_budget(self, ctx: RequestContext, data: dict) -> None:
+    async def _apply_budget(
+        self, ctx: RequestContext, data: dict, teams: Teams, catalogue: Catalogue
+    ) -> None:
         """Team budget: reserve the estimate; when exceeded downgrade, block or alert."""
-        team = self.teams.current().get(ctx.identity.team)
+        team = teams.get(ctx.identity.team)
         if team is None or not team.budget:
             return
-        catalogue = self.catalogue.current()
         entry = catalogue.lookup(ctx.model_routed) if catalogue.loaded else None
         price = entry.price if entry is not None else None
         chars = sum(len(p.text) for p in ctx.pieces)

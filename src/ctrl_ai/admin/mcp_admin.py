@@ -1,56 +1,20 @@
 """MCP tool servers for the admin panel: live tool list, pin status, re-pin.
 
-The hash must match ctrl_ai.mcp.core.tool_hash (the gateway side); the two small functions are
-repeated here so the admin panel does not import the gateway side, and a unit test keeps them equal.
+Listing and hashing are the gateway's own (``ctrl_ai.mcp.core``), so a pin the panel records is
+exactly what the gateway checks.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
-
-import httpx
-
 from ctrl_ai.admin import config_store
 from ctrl_ai.admin.config_store import StoreError
 from ctrl_ai.admin.settings import AdminSettings
+from ctrl_ai.mcp.core import hash_listed_tool, http_list_tools
 
 
-def tool_hash(name: str, description: str | None, input_schema) -> str:
-    canonical = json.dumps(
-        {"name": name, "description": description or "", "input_schema": input_schema or {}},
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def list_tools(url: str, timeout: float = 4.0) -> list[dict]:
-    """tools/list over MCP streamable HTTP (JSON-RPC POST)."""
-    headers = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
-    with httpx.Client(timeout=timeout) as client:
-        init = {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "ctrl-ai-admin", "version": "1"},
-            },
-        }
-        resp = client.post(url, json=init, headers=headers)
-        if resp.headers.get("mcp-session-id"):
-            headers["mcp-session-id"] = resp.headers["mcp-session-id"]
-            client.post(url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)
-        resp = client.post(
-            url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}, headers=headers
-        )
-        text = resp.text
-        if "text/event-stream" in resp.headers.get("content-type", ""):
-            text = next((ln[5:].strip() for ln in text.splitlines() if ln.startswith("data:")), "{}")
-        return (json.loads(text).get("result") or {}).get("tools", [])
+def list_tools(url: str) -> list[dict]:
+    """The server's tools/list answer."""
+    return http_list_tools({"url": url}, timeout=4.0)
 
 
 def server_view(server: dict, lister=list_tools) -> dict:
@@ -66,7 +30,7 @@ def server_view(server: dict, lister=list_tools) -> dict:
     for name in list(configured) + [n for n in live if n not in configured]:
         cfg = configured.get(name, {})
         lt = live.get(name)
-        current = tool_hash(name, lt.get("description"), lt.get("inputSchema")) if lt else None
+        current = hash_listed_tool(lt) if lt else None
         pin = cfg.get("description_sha256")
         if not pin:
             status = "unpinned"
@@ -101,7 +65,7 @@ def repin(
     live = {t.get("name"): t for t in lister(server.get("url"))}
     if tool not in live:
         raise StoreError(409, f"the server does not list a tool named {tool}")
-    new_hash = tool_hash(tool, live[tool].get("description"), live[tool].get("inputSchema"))
+    new_hash = hash_listed_tool(live[tool])
     tools = server.setdefault("tools", [])
     entry = next((t for t in tools if t.get("name") == tool), None)
     if entry is None:

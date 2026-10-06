@@ -98,7 +98,8 @@ def hash_key(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
-def _expired(expires: str | None, now: datetime) -> bool:
+def key_expired(expires: str | None, now: datetime) -> bool:
+    """An unreadable expiry counts as expired: fail closed."""
     if not expires:
         return False
     try:
@@ -139,7 +140,7 @@ def authenticate(
         return AuthResult(None, reason="unknown")
     if record.revoked:
         return AuthResult(None, reason="revoked")
-    if _expired(record.expires, now or datetime.now(UTC)):
+    if key_expired(record.expires, now or datetime.now(UTC)):
         return AuthResult(None, reason="expired")
     return AuthResult(identity_for(record.team, record.user, record.id, teams), key_hash=digest)
 

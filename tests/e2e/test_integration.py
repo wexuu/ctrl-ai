@@ -34,6 +34,7 @@ def _script(*args: str) -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     assert out.returncode == 0, out.stderr
 

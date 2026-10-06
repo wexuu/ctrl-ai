@@ -33,6 +33,7 @@ def script(*args: str) -> subprocess.CompletedProcess:
         text=True,
         env=env,
         timeout=30,
+        check=False,
     )
 
 

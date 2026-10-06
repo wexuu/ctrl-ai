@@ -80,9 +80,8 @@ def test_empty_inputs_are_null_not_zero():
     assert M.wilson(0, 0)["lo"] is None
 
 
-def test_weighted_means_and_effective_n():
-    # Inverse-inclusion weights change the mean; effective N is reported separately.
+def test_weighted_means():
+    # Inverse-inclusion weights change the mean.
     assert M.brier([1.0, 0.0], [1, 1], weights=[1, 3])["value"] == pytest.approx(0.75)
-    assert M.effective_n([1, 3]) == pytest.approx(16 / 10)
     with pytest.raises(M.InvalidScore):
         M.brier([0.5], [1], weights=[0])

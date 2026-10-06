@@ -8,7 +8,6 @@ import json
 import httpx
 import pytest
 
-from ctrl_ai.core.rows import JEV_KEYS
 from ctrl_ai.semantic import judge
 from ctrl_ai.semantic.jev.settings import Settings as JevSettings
 from ctrl_ai.semantic.models import (
@@ -22,6 +21,17 @@ from ctrl_ai.semantic.models import (
 
 JEV = JevSettings(
     api_key="jev-unit-test-key", url="http://jev.test/v1/systemone", timeout_s=2.0, model="jev-1.13.0"
+)
+JEV_KEYS = (
+    "status",
+    "attack",
+    "answers",
+    "model",
+    "input_tokens",
+    "cost_usd",
+    "latency_ms",
+    "truncated",
+    "error",
 )
 JUDGE_KEYS = {"status", "score", "model", "latency_ms", "cost_usd", "error", "category"}
 

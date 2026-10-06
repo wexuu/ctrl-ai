@@ -49,19 +49,39 @@ target-version = "py311"
 extend-exclude = ["tests/e2e/runtime"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PL"]
 ignore = [
     "E501",    # the formatter wraps code; comments and strings may run longer
     "RUF001",  # tests and detectors use confusable and zero-width characters on purpose
     "RUF002",
     "RUF003",
+    "PLR2004", # magic values: thresholds and HTTP codes read better inline than as named constants
 ]
+
+[tool.ruff.lint.pylint]
+# Row builders, dashboard views and the semantic decision take their inputs flat and named.
+max-args = 10
+max-positional-args = 7
+# Decision ladders (governance, break-glass, verdict parsing) return as soon as a rule applies.
+max-returns = 12
+# The dashboard views and the semantic decision are one pass each over a request's fields.
+max-branches = 17
+max-statements = 60
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI dependencies and query defaults are function calls by design.
-"src/ctrl_ai/admin/routes_*.py" = ["B008"]
-# Fixtures are imported so pytest sees them, then named again as test parameters.
-"tests/**" = ["B008", "F811"]
+"src/ctrl_ai/admin/routes/*.py" = ["B008"]
+# The engine's constructor takes every collaborator by keyword.
+"src/ctrl_ai/pipeline/engine.py" = ["PLR0913"]
+# Optional dependencies (LiteLLM, redis, cryptography) are imported where they are used.
+"src/ctrl_ai/adapters/litellm/guardrail.py" = ["PLC0415"]
+"src/ctrl_ai/core/state.py" = ["PLC0415"]
+"src/ctrl_ai/detect/masking.py" = ["PLC0415"]
+"src/ctrl_ai/semantic/models.py" = ["PLC0415"]
+# Fixtures are imported so pytest sees them, then named again as test parameters. Tests import
+# modules after setting the environment, write hidden characters on purpose, and build
+# argument-heavy fixtures.
+"tests/**" = ["B008", "F811", "PLC0415", "PLE2502", "PLE2515", "PLR0911", "PLR0913", "PLR0917"]
 
 [tool.pyright]
 include = ["src"]

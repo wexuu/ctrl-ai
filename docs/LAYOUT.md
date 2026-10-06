@@ -11,7 +11,9 @@ src/ctrl_ai/              the installable package (pip install -e ".[admin,dev]"
   mcp/                    MCP tool checks: approved servers, pinned tool descriptions, content checks
   adapters/litellm/       every LiteLLM hook (guardrail, semantic, restore, MCP, logger, auth); the only code that imports LiteLLM
   evaluation/             offline audit of the semantic models: metrics, reviewers, labels, drift monitor, report
-  admin/                  the admin panel and dashboard (FastAPI), static/ for the pages
+  admin/                  the admin panel and dashboard (FastAPI): app and settings, the config store and its
+                          checks, keys, MCP pins, the audit records (records.py); routes/ one router per
+                          resource, dashboard/ the dashboard views, static/ the pages
 config/                   policy, teams, models, MCP servers, signature feed for an example organisation
   schema/                 the JSON Schemas of those files
   profiles/               alternative configurations (bank/: the bank demo profile); docs/CONFIGURATION.md

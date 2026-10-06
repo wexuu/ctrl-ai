@@ -30,6 +30,8 @@ from ctrl_ai.evaluation import ablation
 from ctrl_ai.evaluation import labels as L
 from ctrl_ai.evaluation import reviewer as R
 from ctrl_ai.evaluation.report import build, publish
+from ctrl_ai.semantic.jev import check_text
+from ctrl_ai.semantic.jev.settings import settings_from_env
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -106,16 +108,13 @@ class Scorers:
         self._last_groq = time.monotonic()
 
     async def jev(self, text: str, source: str) -> dict:
-        from ctrl_ai.semantic.jev import check_text
-        from ctrl_ai.semantic.jev.settings import settings_from_env
-
         k = Cache.key("jev", settings_from_env().model, source, text)
         if k in self.cache.data:
             self.budget.cache_hits += 1
             return self.cache.data[k]
         self.budget.take("jev")
         res = await check_text(
-            text, source=source, timeout_s=float(os.environ.get("CTRL_AI_XAI_JEV_TIMEOUT_S", 15))
+            text, source=source, timeout_s=float(os.environ.get("CTRL_AI_XAI_JEV_TIMEOUT_S", "15"))
         )
         if res.get("cost_usd"):
             self.jev_cost += res["cost_usd"]
@@ -146,8 +145,8 @@ def _load_env() -> None:
     env = ROOT / ".env"
     if not env.is_file():
         return
-    for line in env.read_text().splitlines():
-        line = line.strip()
+    for raw in env.read_text().splitlines():
+        line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)

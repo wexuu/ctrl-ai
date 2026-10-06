@@ -28,6 +28,8 @@ services:
       JEV_MODEL: ${JEV_MODEL:-jev-1.13.0}
       CTRL_AI_POLICY_FILE: ${CTRL_AI_POLICY_FILE:-/app/config/policy.yaml}
       CTRL_AI_AUDIT_LOG: ${CTRL_AI_AUDIT_LOG:-/app/logs/audit.jsonl}
+      # The JSON Schemas every configuration file is validated against when it is loaded.
+      CTRL_AI_SCHEMA_DIR: /app/config/schema
       # Configuration files the gateway re-reads when they change.
       CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
       CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}
@@ -209,6 +211,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       CTRL_AI_GATEWAY_CONFIG: /app/gateway/config.lane.yaml
       CTRL_AI_POLICY_FILE: /app/lane/policy.lane.yaml
+      CTRL_AI_SCHEMA_DIR: /app/config/schema
       CTRL_AI_AUDIT_LOG: ${CTRL_AI_AUDIT_LOG:-/app/logs/audit.jsonl}
       CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
       CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}

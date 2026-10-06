@@ -8,7 +8,7 @@ so the dashboard, the worker and the tests share one definition. Undefined value
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 
 CLIP = 1e-6
 BIN_EDGES = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
@@ -204,9 +204,3 @@ def wilson(successes: int, n: int, z: float = 1.959963984540054) -> dict:
     centre = (ph + z * z / (2 * n)) / den
     half = z * math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n)) / den
     return {"lo": max(0.0, centre - half), "hi": min(1.0, centre + half), "reason": None}
-
-
-def effective_n(weights: Iterable[float]) -> float | None:
-    ws = list(weights)
-    s2 = sum(w * w for w in ws)
-    return (sum(ws) ** 2) / s2 if s2 else None

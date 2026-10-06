@@ -12,7 +12,9 @@ import re
 import unicodedata
 
 _TAG_PRINTABLE = re.compile("[\U000e0020-\U000e007e]+")
-_HIDDEN = re.compile("[​-‏⁠-⁤﻿‪-‮⁦-⁩︀-️­\U000e0100-\U000e01ef\U000e0000-\U000e007f]")
+_HIDDEN = re.compile(
+    "[\u200b-\u200f\u2060-\u2064\ufeff\u202a-\u202e\u2066-\u2069\ufe00-\ufe0f\u00ad\U000e0100-\U000e01ef\U000e0000-\U000e007f]"
+)
 
 
 def normalise(text: str) -> tuple[str, dict]:

@@ -26,6 +26,14 @@ def _ts(value: str) -> int:
     return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
 
 
+def override_expired(record: dict, now: float) -> bool:
+    """True when the override's ``expires_at`` has passed or cannot be read."""
+    try:
+        return _ts(record["expires_at"]) <= now
+    except Exception:
+        return True
+
+
 def make_token(record: dict, secret: str) -> str:
     payload = json.dumps(
         {

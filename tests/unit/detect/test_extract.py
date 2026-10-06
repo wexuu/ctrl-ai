@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from ctrl_ai.detect.extract import MAX_TEXT_CHARS, detect_endpoint, newest_user_text
+from ctrl_ai.detect.extract import MAX_TEXT_CHARS, detect_endpoint, newest_pieces
+
+
+def newest_user_text(data, *, claude_code=False) -> str:
+    """The checked text of the newest turn: prompt and tool results, without reminders."""
+    pieces = newest_pieces(data, claude_code=claude_code)
+    return "\n".join(p.text for p in pieces if not p.reminder and p.source != "tool_call")[:MAX_TEXT_CHARS]
 
 
 def reminder(body: str) -> str:

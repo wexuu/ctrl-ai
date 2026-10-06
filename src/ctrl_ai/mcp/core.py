@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+import httpx
 import yaml
 
 PIN_TTL_S = 600  # re-list a server's tools every 10 minutes
@@ -152,8 +153,6 @@ class PinChecker:
 
 def http_list_tools(server: dict, timeout: float = 5.0) -> list[dict]:
     """tools/list over MCP streamable HTTP (JSON-RPC POST); works with stateless servers."""
-    import httpx
-
     url = server.get("url") or ""
     headers = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
     with httpx.Client(timeout=timeout) as client:

@@ -7,8 +7,8 @@ text, because masking rewrites exactly those characters.
 
 from __future__ import annotations
 
-import functools
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 
@@ -46,7 +46,12 @@ IBAN_LENGTHS = {
     "UA": 29,
 }
 
-_IBAN_CANDIDATE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,32}")
+# A pattern that starts with a look-behind makes Python's re test every position of the text;
+# without one it jumps to the first possible character. The candidates that would start with a
+# look-behind are therefore matched without it, and ``_preceded_by`` checks the character before
+# each match (see ``_finditer``): the same matches, about four times faster on long texts.
+_IBAN_CANDIDATE = re.compile(r"[A-Z][A-Z]\d\d(?: ?[A-Z0-9]){11,32}")
+_IBAN_NOT_AFTER = re.compile(r"[A-Za-z0-9]")
 _NRB_CANDIDATE = re.compile(r"(?<![A-Za-z0-9])\d{2}(?: ?\d{4}){6}(?!\d)")
 _PESEL_CANDIDATE = re.compile(r"(?<![\d])\d{11}(?![\d])")
 _NIP_CANDIDATE = re.compile(r"(?<![\d-])(?:\d{3}-\d{3}-\d{2}-\d{2}|\d{3}-\d{2}-\d{2}-\d{3}|\d{10})(?![\d-])")
@@ -54,7 +59,8 @@ _CARD_CANDIDATE = re.compile(r"(?<![\d])\d(?:[ -]?\d){12,18}(?![\d])")
 _EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}")
 # International: "+", a country code, then digit groups separated by single spaces, dashes or
 # dots, the area code optionally in parentheses. National: three groups of three digits.
-_PHONE_INTERNATIONAL = re.compile(r"(?<![\w+])\+[1-9]\d{0,2}(?:[ .-]?\(?\d{1,4}\)?){2,6}(?![\d])")
+_PHONE_INTERNATIONAL = re.compile(r"\+[1-9]\d{0,2}(?:[ .-]?\(?\d{1,4}\)?){2,6}(?![\d])")
+_PHONE_NOT_AFTER = re.compile(r"[\w+]")
 _PHONE_NATIONAL = re.compile(r"(?<![\d+])\d{3}[ -]\d{3}[ -]\d{3}(?![\d])")
 PHONE_DIGITS = (8, 15)  # E.164 allows at most 15 digits including the country code
 
@@ -139,9 +145,23 @@ def _compact(text: str) -> str:
     return text.replace(" ", "").replace("-", "")
 
 
-def find_iban(text: str) -> list[Match]:
+def _finditer(pattern: re.Pattern[str], not_after: re.Pattern[str], text: str) -> Iterator[re.Match[str]]:
+    """``finditer`` of ``(?<!not_after)pattern``: matches whose preceding character is not one
+    ``not_after`` matches. A rejected match moves the search on by one character, as the
+    look-behind would."""
+    pos = 0
+    while (m := pattern.search(text, pos)) is not None:
+        start = m.start()
+        if start > 0 and not_after.match(text, start - 1):
+            pos = start + 1
+            continue
+        yield m
+        pos = m.end()
+
+
+def find_iban(text: str, windows: Windows | None = None) -> list[Match]:
     out: list[Match] = []
-    for m in _IBAN_CANDIDATE.finditer(text):
+    for m in _finditer(_IBAN_CANDIDATE, _IBAN_NOT_AFTER, text):
         raw = m.group(0)
         country = raw[:2]
         lengths = [IBAN_LENGTHS[country]] if country in IBAN_LENGTHS else list(range(34, 14, -1))
@@ -165,14 +185,21 @@ def find_iban(text: str) -> list[Match]:
     return out
 
 
-_DIGIT_RUN = re.compile(r"\d(?:[ -]?\d)*")
+# A maximal run of digits (single spaces or dashes allowed) that is 9 characters or longer has
+# at least five digits, and a run with five digits is matched from its first digit to its end.
+# Matching only those runs leaves the short runs, the bulk of a log or a listing, to the regex
+# engine instead of a Python loop.
+_DIGIT_RUN = re.compile(r"\d(?:[ -]?\d){4,}")
 
 
-@functools.lru_cache(maxsize=32)
-def _digit_windows(text: str) -> tuple[tuple[int, str], ...]:
+Windows = tuple[tuple[int, str], ...]
+
+
+def digit_windows(text: str) -> Windows:
     """Maximal runs of digits (single spaces or dashes allowed), with one character of context
     on each side. The digit detectors run their patterns only inside these windows, which keeps
-    a 10,000-character prompt fast: the patterns' look-arounds see the same characters."""
+    a 10,000-character prompt fast: the patterns' look-arounds see the same characters. ``scan``
+    finds them once per text and hands them to every digit detector."""
     out = []
     for m in _DIGIT_RUN.finditer(text):
         if m.end() - m.start() < 9:
@@ -182,38 +209,44 @@ def _digit_windows(text: str) -> tuple[tuple[int, str], ...]:
     return tuple(out)
 
 
-def _scan(pattern: re.Pattern[str], text: str, entity: str, valid) -> list[Match]:
+def _in_windows(
+    pattern: re.Pattern[str], text: str, entity: str, valid, windows: Windows | None
+) -> list[Match]:
     out = []
-    for offset, window in _digit_windows(text):
+    for offset, window in digit_windows(text) if windows is None else windows:
         for m in pattern.finditer(window):
             if valid(m.group(0)):
                 out.append(Match(entity, offset + m.start(), offset + m.end(), m.group(0)))
     return out
 
 
-def find_account_pl(text: str) -> list[Match]:
-    return _scan(_NRB_CANDIDATE, text, "account_pl", lambda raw: iban_valid("PL" + _compact(raw)))
+def find_account_pl(text: str, windows: Windows | None = None) -> list[Match]:
+    return _in_windows(
+        _NRB_CANDIDATE, text, "account_pl", lambda raw: iban_valid("PL" + _compact(raw)), windows
+    )
 
 
-def find_pesel(text: str) -> list[Match]:
-    return _scan(_PESEL_CANDIDATE, text, "pesel", pesel_valid)
+def find_pesel(text: str, windows: Windows | None = None) -> list[Match]:
+    return _in_windows(_PESEL_CANDIDATE, text, "pesel", pesel_valid, windows)
 
 
-def find_nip(text: str) -> list[Match]:
-    return _scan(_NIP_CANDIDATE, text, "nip", lambda raw: nip_valid(_compact(raw)))
+def find_nip(text: str, windows: Windows | None = None) -> list[Match]:
+    return _in_windows(_NIP_CANDIDATE, text, "nip", lambda raw: nip_valid(_compact(raw)), windows)
 
 
-def find_card(text: str) -> list[Match]:
-    return _scan(_CARD_CANDIDATE, text, "card", lambda raw: "  " not in raw and luhn_valid(_compact(raw)))
+def find_card(text: str, windows: Windows | None = None) -> list[Match]:
+    return _in_windows(
+        _CARD_CANDIDATE, text, "card", lambda raw: "  " not in raw and luhn_valid(_compact(raw)), windows
+    )
 
 
-def find_email(text: str) -> list[Match]:
+def find_email(text: str, windows: Windows | None = None) -> list[Match]:
     if "@" not in text:
         return []
     return [Match("email", m.start(), m.end(), m.group(0)) for m in _EMAIL.finditer(text)]
 
 
-def find_phone(text: str) -> list[Match]:
+def find_phone(text: str, windows: Windows | None = None) -> list[Match]:
     """Phone numbers in two forms.
 
     International: ``+`` and a country code followed by digit groups (``+48 601 234 567``,
@@ -223,12 +256,12 @@ def find_phone(text: str) -> list[Match]:
     """
     out: list[Match] = []
     if "+" in text:
-        for m in _PHONE_INTERNATIONAL.finditer(text):
+        for m in _finditer(_PHONE_INTERNATIONAL, _PHONE_NOT_AFTER, text):
             value = m.group(0)
             digits = sum(ch.isdigit() for ch in value)
             if PHONE_DIGITS[0] <= digits <= PHONE_DIGITS[1] and ("(" in value) == (")" in value):
                 out.append(Match("phone", m.start(), m.end(), m.group(0)))
-    for offset, window in _digit_windows(text):
+    for offset, window in digit_windows(text) if windows is None else windows:
         for m in _PHONE_NATIONAL.finditer(window):
             match = Match("phone", offset + m.start(), offset + m.end(), m.group(0))
             if not any(match.start < o.end and o.start < match.end for o in out):
@@ -251,23 +284,44 @@ FINDERS = {
 PRIORITY = ("iban", "account_pl", "email", "card", "pesel", "nip", "phone")
 
 
-def detect(text: str, entities: tuple[str, ...] | list[str] | None = None) -> list[Match]:
-    """All validated matches of the given entities, overlaps resolved, in text order."""
+def scan(text: str) -> tuple[Match, ...]:
+    """One pass of every detector over a text: validated matches, overlaps resolved, in text order.
+
+    The higher-priority detectors run even when their entity is not wanted, so their spans
+    suppress lower-priority false matches (a card-looking run inside an IBAN).
+    """
     if not text:
-        return []
-    wanted = set(entities) if entities is not None else set(FINDERS)
-    return [m for m in _detect_all(text) if m.entity in wanted]
-
-
-@functools.lru_cache(maxsize=32)
-def _detect_all(text: str) -> tuple[Match, ...]:
-    # Cached: the packs ask about the same piece once per entity.
-    # Run the higher-priority detectors even when not wanted, so their spans suppress
-    # lower-priority false matches (a card-looking run inside an IBAN).
+        return ()
+    windows = digit_windows(text)
     taken: list[Match] = []
     for entity in PRIORITY:
-        for match in FINDERS[entity](text):
+        for match in FINDERS[entity](text, windows):
             if any(match.start < t.end and t.start < match.end for t in taken):
                 continue
             taken.append(match)
     return tuple(sorted(taken, key=lambda m: m.start))
+
+
+def detect(text: str, entities: tuple[str, ...] | list[str] | None = None) -> list[Match]:
+    """All validated matches of the given entities, overlaps resolved, in text order."""
+    wanted = set(entities) if entities is not None else set(FINDERS)
+    return [m for m in scan(text) if m.entity in wanted]
+
+
+class Scans:
+    """The detection passes of one request: each text is scanned once, however many identifier
+    rules and masking steps ask about it. Created per request and dropped with it, so no text
+    outlives the request."""
+
+    def __init__(self) -> None:
+        self._done: dict[str, tuple[Match, ...]] = {}
+
+    def matches(self, text: str) -> tuple[Match, ...]:
+        found = self._done.get(text)
+        if found is None:
+            found = self._done[text] = scan(text)
+        return found
+
+    def detect(self, text: str, entities: tuple[str, ...] | list[str] | None = None) -> list[Match]:
+        wanted = set(entities) if entities is not None else set(FINDERS)
+        return [m for m in self.matches(text) if m.entity in wanted]

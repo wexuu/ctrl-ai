@@ -87,7 +87,9 @@ async def decide(
 
     accept = getattr(policy, "accept_below", None)
     if accept is not None:
-        await _decide_escalate(ctx, policy, texts, jev_ok, score, accept, judge_check, relaxed)
+        await _decide_escalate(
+            ctx, policy, texts, jev_ok, score, accept, judge_check=judge_check, relaxed=relaxed
+        )
         return
 
     review, block = policy.review_threshold, policy.block_threshold
@@ -142,6 +144,7 @@ async def _decide_escalate(
     jev_ok: bool,
     score: float | None,
     accept: float,
+    *,
     judge_check: JudgeCheck | None,
     relaxed: bool,
 ) -> None:

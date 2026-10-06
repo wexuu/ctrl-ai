@@ -9,8 +9,10 @@ import jsonschema
 import pytest
 from fastapi.testclient import TestClient
 
-from ctrl_ai.admin import analytics, keys
+from ctrl_ai.admin import keys
 from ctrl_ai.admin.config_store import StoreError
+from ctrl_ai.admin.dashboard.semantic import outages
+from ctrl_ai.admin.records import build_dataset
 from tests.unit.admin.test_admin import REPO
 
 FIXTURE = REPO / "tests" / "fixtures" / "audit-v2-sample.jsonl"
@@ -19,11 +21,11 @@ AT_0830 = datetime(2026, 10, 4, 8, 30, tzinfo=UTC)
 
 @pytest.fixture
 def data():
-    return analytics.build_dataset(json.loads(x) for x in FIXTURE.read_text().splitlines())
+    return build_dataset(json.loads(x) for x in FIXTURE.read_text().splitlines())
 
 
 def test_circuits_and_periods(data):
-    o = analytics.outages(data["incidents"], data["records"], None, now=AT_0830)
+    o = outages(data["incidents"], data["records"], None, now=AT_0830)
     assert (
         o["circuits"]["jev"]["state"] == "closed"
         and o["circuits"]["jev"]["since"] == "2026-10-04T08:20:00.000Z"
@@ -54,9 +56,7 @@ def test_circuits_and_periods(data):
 
 
 def test_manual_period_expires(data):
-    o = analytics.outages(
-        data["incidents"], data["records"], None, now=datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
-    )
+    o = outages(data["incidents"], data["records"], None, now=datetime(2026, 10, 4, 9, 0, tzinfo=UTC))
     manual = o["periods"][-1]
     assert manual["end"] == "2026-10-04T08:46:00.000Z" and not manual["ongoing"]
     assert not o["active"]
@@ -90,8 +90,8 @@ def test_blocks_during_outage_are_counted():
             "semantic": {"source": None, "score": None, "action": "flag", "reason": "outage"},
         },
     ]
-    d = analytics.build_dataset(rows)
-    o = analytics.outages(d["incidents"], d["records"], None, now=datetime(2026, 10, 4, 10, 5, tzinfo=UTC))
+    d = build_dataset(rows)
+    o = outages(d["incidents"], d["records"], None, now=datetime(2026, 10, 4, 10, 5, tzinfo=UTC))
     assert (
         o["automatic_active"]
         and o["blocked_during"] == 1
@@ -111,11 +111,11 @@ def test_switch_file_adds_a_manual_period():
         "issued_at": "2026-10-04T09:50:00Z",
         "expires_at": "2026-10-04T10:20:00Z",
     }
-    o = analytics.outages([], [], sw, now=now)
+    o = outages([], [], sw, now=now)
     assert o["active"] and o["mode"] == "fail_closed" and o["periods"][0]["kind"] == "manual"
-    assert not analytics.outages([], [], dict(sw, active=False), now=now)["active"]
-    assert not analytics.outages([], [], dict(sw, mode="normal"), now=now)["active"]
-    assert not analytics.outages([], [], sw, now=now + timedelta(hours=1))["active"]
+    assert not outages([], [], dict(sw, active=False), now=now)["active"]
+    assert not outages([], [], dict(sw, mode="normal"), now=now)["active"]
+    assert not outages([], [], sw, now=now + timedelta(hours=1))["active"]
 
 
 def _schema():
@@ -203,6 +203,6 @@ def test_gateway_outage_rows_for_a_manual_switch_are_not_automatic():
         "reason": "r",
         "ticket": "T",
     }
-    out = analytics.outages(rows, [], switch, now=datetime(2026, 10, 4, 0, 45, tzinfo=UTC))
+    out = outages(rows, [], switch, now=datetime(2026, 10, 4, 0, 45, tzinfo=UTC))
     assert out["automatic_active"] is False and out["active"] is False
     assert all(p["kind"] != "automatic" for p in out["periods"])

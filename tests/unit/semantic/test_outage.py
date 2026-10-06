@@ -173,6 +173,7 @@ def test_script_refuses_too_long_manual_switch(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert out.returncode == 2 and "at most 120 minutes" in out.stderr
     assert not (tmp_path / "r.json").exists()
@@ -196,6 +197,7 @@ def test_script_refuses_too_long_manual_switch(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert out.returncode == 0
     doc = json.loads((tmp_path / "r.json").read_text())

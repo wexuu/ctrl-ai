@@ -97,7 +97,7 @@ CASES = [
 def test_blind_sheet_has_no_scores_or_answer_key():
     text = L.sheet_csv(CASES)
     header = text.splitlines()[0].lower()
-    for word in L.FORBIDDEN_IN_PACKET:
+    for word in ("score", "jev", "verdict", "model", "expected", "safeguard", "guard"):
         assert word not in header
     assert "Summarize." in text and "tool_result:indirect_injection" in text
 

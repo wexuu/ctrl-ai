@@ -39,7 +39,6 @@ LABEL_VALUES = {
     "insufficient_context": None,
 }
 RUBRIC_VERSION = "r1"
-FORBIDDEN_IN_PACKET = ("score", "jev", "verdict", "model", "expected", "safeguard", "guard")
 
 
 def sheet_rows(cases: list[dict]) -> list[dict]:

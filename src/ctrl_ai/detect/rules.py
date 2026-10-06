@@ -7,21 +7,11 @@ from collections.abc import Iterable
 
 from ctrl_ai.core.context import Finding, Piece
 from ctrl_ai.core.policy import Policy, Rule
+from ctrl_ai.detect.detectors import Scans
 from ctrl_ai.detect.packs import BUILTIN_RULES, SECRETS, SIGNATURES, pack_rules
 
 # Claude Code's <system-reminder> content is checked only by these packs.
 REMINDER_PACKS = (SECRETS, SIGNATURES)
-
-
-def first_match(policy: Policy, text: str) -> Rule | None:
-    """Return the first rule, in file order, that matches the text.
-
-    ``contains`` is a case-sensitive substring test; ``regex`` is ``re.search``.
-    """
-    for rule in policy.rules:
-        if _rule_matches(rule, text):
-            return rule
-    return None
 
 
 def _rule_matches(rule: Rule, text: str) -> bool:
@@ -30,13 +20,16 @@ def _rule_matches(rule: Rule, text: str) -> bool:
     return (rule.pattern or re.compile(rule.value)).search(text) is not None
 
 
-def all_matches(policy: Policy, pieces: Iterable[Piece], feed=None) -> list[Finding]:
+def all_matches(
+    policy: Policy, pieces: Iterable[Piece], feed=None, scans: Scans | None = None
+) -> list[Finding]:
     """Every rule that matched, one finding per (rule, source).
 
     Order: policy rules (file order), then enabled packs, then signatures. A policy rule
     with the id of a pack rule overrides that pack rule instead of running on its own.
     """
     pieces = [p for p in pieces if p.text]
+    scans = scans if scans is not None else Scans()
     packs = pack_rules(policy.rule_packs, feed)
     pack_ids = {r.id for r in packs}
     findings: list[Finding] = []
@@ -68,7 +61,12 @@ def all_matches(policy: Policy, pieces: Iterable[Piece], feed=None) -> list[Find
                 continue
             if piece.reminder and prule.pack not in REMINDER_PACKS:
                 continue
-            if prule.matches(piece.text):
+            if prule.entity is not None:
+                # Identifier rules read the piece's one detection pass (overlaps resolved).
+                hit = any(m.entity == prule.entity for m in scans.matches(piece.text))
+            else:
+                hit = prule.matches(piece.text)
+            if hit:
                 add(prule.id, prule.pack, piece.source, action, severity)
     return findings
 

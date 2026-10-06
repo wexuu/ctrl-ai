@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from ctrl_ai.core.context import Piece
 from ctrl_ai.core.policy import Policy, Rule, parse_policy
-from ctrl_ai.detect.rules import first_match
+from ctrl_ai.detect.rules import all_matches
 
 POLICY = parse_policy(b"""\
 mode: enforce
@@ -18,9 +19,10 @@ rules:
 """)
 
 
-def matched(text: str) -> str | None:
-    rule = first_match(POLICY, text)
-    return rule.id if rule else None
+def matched(text: str, policy: Policy = POLICY) -> str | None:
+    """The first policy rule, in file order, that matches the text."""
+    findings = all_matches(policy, [Piece(text, "prompt")])
+    return findings[0].rule if findings else None
 
 
 def test_contains():
@@ -53,4 +55,4 @@ def test_rules_are_tried_in_file_order():
 
 def test_regex_rule_built_without_a_compiled_pattern():
     policy = Policy(mode="enforce", rules=(Rule("digits", "regex", r"\d{3}"),), jev_enabled=True, version="x")
-    assert first_match(policy, "abc 123").id == "digits"
+    assert matched("abc 123", policy) == "digits"

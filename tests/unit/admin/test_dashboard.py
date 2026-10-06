@@ -15,7 +15,12 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from ctrl_ai.admin import analytics
+from ctrl_ai.admin.dashboard.common import apply_filters, percentile
+from ctrl_ai.admin.dashboard.management import management
+from ctrl_ai.admin.dashboard.operations import operations
+from ctrl_ai.admin.dashboard.security import group_blocks, security
+from ctrl_ai.admin.dashboard.semantic import second_model
+from ctrl_ai.admin.records import EXPORT_FIELDS, LogReader, build_dataset, export_row
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURE = REPO / "tests" / "fixtures" / "audit-v2-sample.jsonl"
@@ -27,12 +32,12 @@ START, END, TODAY = date(2026, 10, 1), date(2026, 10, 31), date(2026, 10, 4)
 @pytest.fixture
 def data():
     rows = [json.loads(line) for line in FIXTURE.read_text().splitlines()]
-    return analytics.build_dataset(rows)
+    return build_dataset(rows)
 
 
 @pytest.fixture
 def recs(data):
-    return analytics.apply_filters(data["records"], START, END)
+    return apply_filters(data["records"], START, END)
 
 
 def test_join_and_v1_defaults(data):
@@ -50,7 +55,7 @@ def test_join_and_v1_defaults(data):
 
 
 def test_management_kpis(recs):
-    m = analytics.management(recs, START, END, TEAMS, MODELS, today=TODAY)
+    m = management(recs, START, END, TEAMS, MODELS, today=TODAY)
     k = m["kpis"]
     # spend (not shadow): req-0002 0.00558 + legacy 0.061
     assert k["spend"] == pytest.approx(0.06658)
@@ -84,7 +89,7 @@ def test_management_kpis(recs):
 
 
 def test_filters(data):
-    recs = analytics.apply_filters(data["records"], date(2026, 10, 4), date(2026, 10, 4), team="retail-dev")
+    recs = apply_filters(data["records"], date(2026, 10, 4), date(2026, 10, 4), team="retail-dev")
     assert [r["request_id"] for r in recs] == [
         "req-0001",
         "req-0003",
@@ -93,15 +98,13 @@ def test_filters(data):
         "req-0009",
         "req-0013",
     ]
-    assert (
-        len(analytics.apply_filters(data["records"], START, END, model="chat-mistral")) == 2
-    )  # 0004 req, 0009 routed
-    assert len(analytics.apply_filters(data["records"], date(2026, 10, 3), date(2026, 10, 3))) == 1
+    assert len(apply_filters(data["records"], START, END, model="chat-mistral")) == 2  # 0004 req, 0009 routed
+    assert len(apply_filters(data["records"], date(2026, 10, 3), date(2026, 10, 3))) == 1
 
 
 def test_security(recs, data):
     overrides = [{"id": "bg_1", "status": "active"}, {"id": "bg_2", "status": "revoked"}]
-    s = analytics.security(recs, data["tools"], data["break_glass"], overrides)
+    s = security(recs, data["tools"], data["break_glass"], overrides)
     assert s["kpis"] == {
         "blocked": 2,
         "blocked_requests": 2,
@@ -130,7 +133,7 @@ def test_security(recs, data):
 
 
 def test_operations(recs):
-    o = analytics.operations(recs, now=datetime(2026, 10, 4, 8, 15, tzinfo=UTC))
+    o = operations(recs, now=datetime(2026, 10, 4, 8, 15, tzinfo=UTC))
     k = o["kpis"]
     assert k["p50_guard_ms"] == 214.0 and k["p95_guard_ms"] == 253.0  # 3.1, 214 x12, 253
     assert k["p50_total_ms"] == 612.0 and k["p95_total_ms"] == 2900.0
@@ -145,15 +148,15 @@ def test_operations(recs):
 
 
 def test_percentile():
-    assert analytics.percentile([], 50) is None
-    assert analytics.percentile([1, 2, 3, 4], 50) == 2 and analytics.percentile([1, 2, 3, 4], 95) == 4
+    assert percentile([], 50) is None
+    assert percentile([1, 2, 3, 4], 50) == 2 and percentile([1, 2, 3, 4], 95) == 4
 
 
 def test_incremental_reader(tmp_path):
     p = tmp_path / "audit.jsonl"
     lines = FIXTURE.read_text().splitlines()
     p.write_text("\n".join(lines[:4]) + "\n")
-    r = analytics.LogReader(str(p), max_rows=10)
+    r = LogReader(str(p), max_rows=10)
     assert r.refresh() and len(r.rows) == 4
     assert not r.refresh()
     with p.open("a") as f:
@@ -171,8 +174,8 @@ def test_incremental_reader(tmp_path):
 
 
 def test_export_contains_no_text_fields(recs):
-    row = analytics.export_row(recs[0])
-    assert set(row) == set(analytics.EXPORT_FIELDS)
+    row = export_row(recs[0])
+    assert set(row) == set(EXPORT_FIELDS)
     assert not any(k in row for k in ("text", "prompt", "messages", "content"))
 
 
@@ -266,7 +269,7 @@ def test_fallback_two_usage_rows_count_once_on_the_serving_model():
             "error": None,
         },
     ]
-    [rec] = analytics.build_dataset(rows)["records"]
+    [rec] = build_dataset(rows)["records"]
     assert rec["status"] == "success" and rec["error"] is None and rec["fallback_used"] is True
     assert (rec["model_requested"], rec["model_routed"]) == ("claude-opus-5-5", "claude-sonnet-5-5")
     assert (rec["input_tokens"], rec["output_tokens"], rec["cost_usd"]) == (10, 20, 0.001)
@@ -284,7 +287,7 @@ def test_group_blocks_collapses_a_burst_from_one_key():
         rec("ok", "2026-10-04T05:33:29.000Z", decision="allow"),
         rec("d", "2026-10-04T05:33:40.000Z"),
     ]
-    out = analytics.group_blocks(records)
+    out = group_blocks(records)
     assert [(r["request_id"], r.get("repeats")) for r in out] == [("a", 3), ("x", 1), ("ok", None), ("d", 1)]
     assert out[0]["request_ids"] == ["a", "b", "c"] and "repeats" not in records[0]
 
@@ -318,7 +321,7 @@ def test_second_model_summary_and_drift_alert():
         rec("2026-10-04T11:01:00.000Z", "judge_accepted"),
         rec("2026-10-04T11:02:00.000Z", "unavailable", js="unavailable"),
     ]
-    out = analytics.second_model(records, shadows, {"alert_below": 0.9, "min_checks": 10, "rate": 0.1})
+    out = second_model(records, shadows, {"alert_below": 0.9, "min_checks": 10, "rate": 0.1})
     t = out["total"]
     assert (t["answered"], t["agree"], t["possible_misses"], t["confirmed"], t["overruled"]) == (
         10,
@@ -329,4 +332,4 @@ def test_second_model_summary_and_drift_alert():
     )
     assert out["alert"] == {"day": "2026-10-04", "agreement": 0.7, "threshold": 0.9, "checks": 10}
     assert out["decided_alone"] == 1 and len(out["possible_misses"]) == 3
-    assert analytics.second_model(records, shadows[:5], {"min_checks": 10})["alert"] is None  # too few checks
+    assert second_model(records, shadows[:5], {"min_checks": 10})["alert"] is None  # too few checks

@@ -10,7 +10,7 @@ import json
 import threading
 from datetime import UTC, datetime
 
-from ctrl_ai.admin.audit_reader import parse_rows, tail_lines
+from ctrl_ai.admin.records import read_rows
 
 _LOCK = threading.Lock()
 
@@ -67,5 +67,5 @@ def write(
 
 def read(path: str, limit: int = 2000) -> list[dict]:
     """The newest `limit` admin rows, newest first."""
-    rows = [r for r in parse_rows(tail_lines(path, limit)) if r.get("type") == "admin"]
-    return list(reversed(rows))
+    rows = [r for r in read_rows(path) if r.get("type") == "admin"]
+    return list(reversed(rows[-limit:]))

@@ -65,3 +65,9 @@ def test_named_teams_exist(directory):
     named |= {t for s in load(directory, "mcp")["servers"] for t in s.get("teams", []) if t != "*"}
     named |= {t["owner"] for t in load(directory, "models")["models"] if t.get("owner")}
     assert named <= teams, named - teams
+
+
+def test_degraded_lane_policy_parses_and_matches_its_schema():
+    raw = (REPO / "deploy" / "lane" / "policy.lane.yaml").read_bytes()
+    validate(yaml.safe_load(raw), "policy")
+    parse_policy(raw)

@@ -47,11 +47,11 @@ def catalogue(tmp_path):
     return core.Catalogue(str(tmp_path / "mcp.yaml"))
 
 
-def test_hash_is_canonical_and_matches_ui():
+def test_hash_is_canonical():
     a = core.tool_hash("t", "d", {"b": 1, "a": 2})
     assert a == core.tool_hash("t", "d", {"a": 2, "b": 1})
     assert a != core.tool_hash("t", "d2", {"a": 2, "b": 1})
-    assert a == mcp_admin.tool_hash("t", "d", {"a": 2, "b": 1})
+    assert a == core.hash_listed_tool({"name": "t", "description": "d", "inputSchema": {"a": 2, "b": 1}})
 
 
 def test_committed_pins_match_the_stub(catalogue):

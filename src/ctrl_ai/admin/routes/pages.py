@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, RedirectResponse
 
-STATIC = Path(__file__).resolve().parent / "static"
+STATIC = Path(__file__).resolve().parents[1] / "static"
 router = APIRouter()
 
 PAGES = {
@@ -36,7 +36,7 @@ def _page(file_name: str):
     def handler() -> FileResponse:
         return FileResponse(STATIC / file_name)
 
-    handler.__name__ = "page_" + file_name.split(".")[0]
+    handler.__name__ = "page_" + Path(file_name).stem
     return handler
 
 

@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ctrl_ai.admin import app as ui_app
-from ctrl_ai.admin import routes_chat
+from ctrl_ai.admin.routes import chat as routes_chat
 
 MASTER = "sk-ctrl-ai-unit-master-0123456789"
 CALL_ID = "0c3f0000-1111-2222-3333-444455556666"

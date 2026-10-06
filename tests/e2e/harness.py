@@ -199,8 +199,8 @@ def audit_rows_since(offset: int) -> list[dict]:
     except FileNotFoundError:
         return []
     rows = []
-    for line in data.decode("utf-8", "replace").splitlines():
-        line = line.strip()
+    for raw in data.decode("utf-8", "replace").splitlines():
+        line = raw.strip()
         if not line:
             continue
         try:

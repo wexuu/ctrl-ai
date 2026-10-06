@@ -182,8 +182,12 @@ def surrogate(entity: str, value: str, session: str, secret: str, avoid: Iterabl
 class Masker:
     """Masks strings for one request; collects the surrogate map and counts per entity."""
 
-    def __init__(self, entities: tuple[str, ...], session: str, secret: str):
+    def __init__(
+        self, entities: tuple[str, ...], session: str, secret: str, scans: detectors.Scans | None = None
+    ):
         self.entities = entities
+        # The request's detection passes, so a text the checks already scanned is not scanned again.
+        self._scans = scans if scans is not None else detectors.Scans()
         self.session = session
         self.secret = secret
         self.mapping: dict[str, str] = {}  # surrogate -> real
@@ -193,7 +197,7 @@ class Masker:
     def mask_text(self, text: str) -> str:
         if not text:
             return text
-        matches = detectors.detect(text, self.entities)
+        matches = self._scans.detect(text, self.entities)
         if not matches:
             return text
         out, pos = [], 0
@@ -323,8 +327,3 @@ def fernet_for(secret: str):
 def encrypt_map(mapping: dict[str, str], secret: str) -> dict[str, str]:
     f = fernet_for(secret)
     return {fake: f.encrypt(real.encode()).decode() for fake, real in mapping.items()}
-
-
-def decrypt_map(stored: dict[str, str], secret: str) -> dict[str, str]:
-    f = fernet_for(secret)
-    return {fake: f.decrypt(token.encode()).decode() for fake, token in stored.items()}

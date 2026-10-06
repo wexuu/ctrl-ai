@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from ctrl_ai.core.context import Finding, Piece
 from ctrl_ai.core.policy import Policy
+from ctrl_ai.detect.detectors import Scans
 from ctrl_ai.detect.normalise import merge_stats, normalise
 from ctrl_ai.detect.rules import all_matches
 
@@ -49,7 +50,9 @@ def normalise_pieces(
     return out, merged, finding
 
 
-def detect(pieces: Iterable[Piece], policy: Policy, feed, *, block_hidden: bool) -> Detection:
+def detect(
+    pieces: Iterable[Piece], policy: Policy, feed, *, block_hidden: bool, scans: Scans | None = None
+) -> Detection:
     """Normalisation, then the policy's rules, the rule packs and the signature feed.
 
     ``block_hidden`` says whether a hidden-character finding blocks (strict profiles) or flags.
@@ -57,7 +60,7 @@ def detect(pieces: Iterable[Piece], policy: Policy, feed, *, block_hidden: bool)
     the request is actually rewritten.
     """
     pieces, stats, hidden = normalise_pieces(pieces, policy, block_hidden=block_hidden)
-    findings = all_matches(policy, pieces, feed)
+    findings = all_matches(policy, pieces, feed, scans)
     if hidden is not None:
         findings.append(hidden)
     return Detection(pieces, findings, stats)

@@ -19,10 +19,9 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from ctrl_ai.admin import audit_reader
+from ctrl_ai.admin.records import audit_entries
 from ctrl_ai.admin.settings import AdminSettings, admin_settings
 
-STATIC = Path(__file__).resolve().parent / "static"
 GATEWAY_TIMEOUT = httpx.Timeout(60.0, connect=5.0)
 MAX_TOKENS = 4096
 BLOCK_TEXT = "Blocked by ctrl-ai"
@@ -161,7 +160,7 @@ def audit(
     settings: AdminSettings = Depends(admin_settings),
 ) -> dict:
     """The newest audit records, decision and usage rows joined by request_id."""
-    return {"records": audit_reader.read_records(settings.audit_log, limit, request_id)}
+    return {"records": audit_entries(settings.audit_log, limit, request_id)}
 
 
 @router.get("/api/policy")

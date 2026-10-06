@@ -12,31 +12,33 @@ import json
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
 
 class SchemaError(ValueError):
     """A document does not match its schema."""
 
 
 DEFAULT_SCHEMA_DIR = Path(__file__).resolve().parents[3] / "config" / "schema"
-_schema_dir = DEFAULT_SCHEMA_DIR
+
+
+class _SchemaDirectory:
+    """Where the schemas are; set once at start-up by the process that owns the settings."""
+
+    path: Path = DEFAULT_SCHEMA_DIR
 
 
 def use_schema_dir(directory: str | Path | None) -> None:
     """Validate against the schemas in ``directory`` from now on (the default when empty)."""
-    global _schema_dir
-    _schema_dir = Path(directory) if directory else DEFAULT_SCHEMA_DIR
+    _SchemaDirectory.path = Path(directory) if directory else DEFAULT_SCHEMA_DIR
 
 
 def schema_dir() -> Path:
-    return _schema_dir
+    return _SchemaDirectory.path
 
 
 @functools.lru_cache(maxsize=16)
 def _validator(name: str, directory: str) -> Any:
-    try:
-        import jsonschema
-    except ImportError:
-        return None
     path = Path(directory) / f"{name}.schema.json"
     if not path.is_file():
         return None
@@ -52,8 +54,7 @@ def jsonable(doc: Any) -> Any:
 def validate(doc: Any, name: str) -> None:
     """Raise SchemaError with a short reason when ``doc`` does not match ``<name>.schema.json``.
 
-    A missing schema file or a missing ``jsonschema`` library skips validation; our own
-    parsers still check what they need.
+    A missing schema file skips validation; our own parsers still check what they need.
     """
     validator = _validator(name, str(schema_dir()))
     if validator is None:

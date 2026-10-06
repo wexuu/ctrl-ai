@@ -28,8 +28,8 @@ def _dotenv() -> dict[str, str]:
     env = dict(os.environ)
     path = REPO / ".env"
     if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
@@ -45,6 +45,7 @@ def _jev(text: str, env: dict[str, str]) -> dict:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     assert proc.returncode == 0, f"python -m ctrl_ai.semantic.jev exited {proc.returncode}"
     return json.loads(proc.stdout)
@@ -68,6 +69,6 @@ def test_l2_claude_code_live_check():
         pytest.skip("scripts/live-check.sh not found")
     env = _dotenv() | {"LIVE_CHECK_EXPECT_BLOCK": "1"}
     proc = subprocess.run(
-        ["bash", str(script)], cwd=REPO, env=env, capture_output=True, text=True, timeout=300
+        ["bash", str(script)], cwd=REPO, env=env, capture_output=True, text=True, timeout=300, check=False
     )
     assert proc.returncode == 0, f"live-check.sh exited {proc.returncode}"

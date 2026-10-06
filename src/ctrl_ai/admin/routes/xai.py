@@ -13,7 +13,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ctrl_ai.admin import analytics, auth, config_store
+from ctrl_ai.admin import auth, config_store
+from ctrl_ai.admin.dashboard.semantic import second_model
+from ctrl_ai.admin.records import dataset
 from ctrl_ai.admin.settings import AdminSettings, admin_settings
 
 router = APIRouter()
@@ -73,8 +75,8 @@ def xai_live(
     """Jev and the second model on live traffic, from the audit log (no text, no model calls)."""
     doc = config_store.read_doc(settings, "policy")
     shadow = (doc.get("judge") or {}).get("shadow") or {}
-    data = analytics.dataset(settings.audit_log)
-    return analytics.second_model(
+    data = dataset(settings.audit_log)
+    return second_model(
         data["records"],
         data.get("shadows", []),
         shadow,

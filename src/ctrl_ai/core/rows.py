@@ -10,18 +10,6 @@ from __future__ import annotations
 from ctrl_ai.core.audit import utc_now_iso
 from ctrl_ai.core.context import RequestContext
 
-JEV_KEYS = (
-    "status",
-    "attack",
-    "answers",
-    "model",
-    "input_tokens",
-    "cost_usd",
-    "latency_ms",
-    "truncated",
-    "error",
-)
-
 
 def jev_verdict(status: str, error: str | None = None, latency_ms: float = 0.0) -> dict:
     """A verdict for a call that produced no Jev answer, with all nine contract keys."""

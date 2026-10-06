@@ -3,8 +3,7 @@
 The master key stays on this server: the browser never receives it. Chat text is never
 logged or written anywhere; it lives in the browser and in the request in flight.
 
-Routes live in small modules (routes_chat, routes_admin, routes_dash, routes_xai, routes_pages);
-this file builds the app from its settings, adds the security headers and mounts the static files.
+The routers live in ``admin/routes/``, one module per resource; this file builds the app from its settings, adds the security headers and mounts the static files.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from ctrl_ai.admin import routes_admin, routes_chat, routes_dash, routes_pages, routes_xai
+from ctrl_ai.admin.routes import chat, config, dashboard, keys, mcp, outage, pages, session, xai
 from ctrl_ai.admin.settings import AdminSettings
 from ctrl_ai.core.schema import use_schema_dir
 
@@ -44,6 +43,6 @@ def create_app(settings: AdminSettings | None = None) -> FastAPI:
     app.state.settings = settings
     app.middleware("http")(_security_headers)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
-    for module in (routes_chat, routes_pages, routes_admin, routes_dash, routes_xai):
+    for module in (chat, pages, session, config, keys, mcp, outage, dashboard, xai):
         app.include_router(module.router)
     return app

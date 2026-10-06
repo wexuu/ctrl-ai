@@ -6,13 +6,14 @@ The key itself is returned once, to the admin who issued it, and never written o
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
 from ctrl_ai.admin import admin_audit, config_store
 from ctrl_ai.admin.config_store import StoreError
 from ctrl_ai.admin.settings import AdminSettings
+from ctrl_ai.governance.breakglass import override_expired
+from ctrl_ai.governance.identity import hash_key, key_expired
 
 KEY_PREFIX = "sk-ctrl-ai-"
 
@@ -20,10 +21,6 @@ KEY_PREFIX = "sk-ctrl-ai-"
 def generate_key() -> str:
     """sk-ctrl-ai- followed by 48 hex characters."""
     return KEY_PREFIX + secrets.token_hex(24)
-
-
-def hash_key(key: str) -> str:
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 def _now() -> datetime:
@@ -45,13 +42,9 @@ def _parse(ts) -> datetime | None:
 
 
 def key_status(record: dict, now: datetime | None = None) -> str:
-    now = now or _now()
     if record.get("revoked"):
         return "revoked"
-    exp = _parse(record.get("expires"))
-    if exp and exp <= now:
-        return "expired"
-    return "active"
+    return "expired" if key_expired(record.get("expires"), now or _now()) else "active"
 
 
 def issue(
@@ -126,13 +119,9 @@ def list_keys(settings: AdminSettings, last_used: dict | None = None) -> list[di
 
 
 def override_status(record: dict, now: datetime | None = None) -> str:
-    now = now or _now()
     if record.get("revoked"):
         return "revoked"
-    exp = _parse(record.get("expires_at"))
-    if exp and exp <= now:
-        return "expired"
-    return "active"
+    return "expired" if override_expired(record, (now or _now()).timestamp()) else "active"
 
 
 def list_overrides(settings: AdminSettings) -> list[dict]:

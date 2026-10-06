@@ -6,6 +6,8 @@ FROM ghcr.io/berriai/litellm:v1.103.2@sha256:f63fb81b831b170ec16851e23c36ac5bf52
 COPY src/ctrl_ai/ /app/ctrl_ai/
 COPY deploy/litellm/ /app/gateway/
 COPY config/ /app/config/
+# The schemas again outside /app/config, which a cluster mounts over with its ConfigMap.
+COPY config/schema/ /app/schema/
 
 ENV PYTHONPATH=/app \
     CTRL_AI_POLICY_FILE=/app/config/policy.yaml \
@@ -16,6 +18,7 @@ ENV PYTHONPATH=/app \
     CTRL_AI_KEYS_FILE=/app/state/keys.json \
     CTRL_AI_BREAKGLASS_FILE=/app/state/break_glass.json \
     CTRL_AI_AUDIT_LOG=/dev/stdout \
+    CTRL_AI_SCHEMA_DIR=/app/schema \
     LITELLM_LOCAL_MODEL_COST_MAP=True
 
 # Non-root. The audit log goes to stdout in a cluster; /app/logs and /app/state are volumes.

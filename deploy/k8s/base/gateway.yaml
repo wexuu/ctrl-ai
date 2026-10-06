@@ -40,6 +40,8 @@ spec:
             - {name: CTRL_AI_MCP_FILE, value: /app/config/mcp.yaml}
             - {name: CTRL_AI_KEYS_FILE, value: /app/state/keys.json}
             - {name: CTRL_AI_BREAKGLASS_FILE, value: /app/state/break_glass.json}
+            # From the image: the config ConfigMap mounted on /app/config holds no schemas.
+            - {name: CTRL_AI_SCHEMA_DIR, value: /app/schema}
             # The audit log is JSON on stdout; the cluster's log agent ships it (Fluent Bit,
             # CloudWatch). The dashboard then reads the log store, not a file (future work).
             - {name: CTRL_AI_AUDIT_LOG, value: /dev/stdout}

@@ -4,7 +4,7 @@ The admin panel (`/admin/policy`, `/admin/models`, `/admin/teams`, `/admin/histo
 
 ## Open access: no sign-in
 
-The panel and the dashboard are open: there is no password and no login page. Every page shows a small banner saying so. Every admin and dashboard route still goes through one FastAPI dependency, `ui.auth.current_admin(request) -> Admin(name, roles)`, which returns
+The panel and the dashboard are open: there is no password and no login page. Every page shows a small banner saying so. Every admin and dashboard route still goes through one FastAPI dependency, `ctrl_ai.admin.auth.current_admin(request) -> Admin(name, roles)`, which returns
 
 ```
 Admin(name="local-admin", roles=["platform-admin", "security-officer", "finance-viewer"])
@@ -32,7 +32,7 @@ In production the panel sits behind the organisation's central identity provider
 | Security officer | `secops-ai` | Edit the policy and revoke break-glass overrides; read everything, including the security view and the auditor export |
 | Finance viewer | `finance-ai-costs` | Read the Management view of the dashboard only (spend, budgets, forecast) |
 
-4. **Where it plugs in.** Only `ui.auth.resolve_admin(request)` changes: it reads the verified identity (from the session, or from trusted headers such as `X-Forwarded-User` / `X-Forwarded-Groups` set by the proxy) and returns `Admin(name=<user principal>, roles=<mapped roles>)`. Each route then checks `admin.has("platform-admin")` and so on; the audit rows already carry `admin.name` as the actor. Nothing else in the panel changes.
+4. **Where it plugs in.** Only `ctrl_ai.admin.auth.resolve_admin(request)` changes: it reads the verified identity (from the session, or from trusted headers such as `X-Forwarded-User` / `X-Forwarded-Groups` set by the proxy) and returns `Admin(name=<user principal>, roles=<mapped roles>)`. Each route then checks `admin.has("platform-admin")` and so on; the audit rows already carry `admin.name` as the actor. Nothing else in the panel changes.
 5. Every admin action stays in the admin audit log, which in production is shipped to the organisation's SIEM together with the gateway's audit log.
 
 ## Files the panel writes

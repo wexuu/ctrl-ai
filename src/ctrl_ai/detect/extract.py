@@ -93,21 +93,12 @@ def newest_pieces(data: dict, *, claude_code: bool = False) -> list[Piece]:
                     leading = False
                     out.append(Piece(rest.strip()[:MAX_TEXT_CHARS], source))
                 continue
-            text = text.strip()
-            if text:
-                out.append(Piece(text[:MAX_TEXT_CHARS], source))
+            stripped = text.strip()
+            if stripped:
+                out.append(Piece(stripped[:MAX_TEXT_CHARS], source))
         return out
     except Exception:
         return []
-
-
-def newest_user_text(data: dict, *, claude_code: bool = False) -> str:
-    """The prompt and tool-result text of the newest turn, without Claude Code reminders.
-
-    Kept for compatibility. Never raises; an unknown shape gives an empty string.
-    """
-    pieces = newest_pieces(data, claude_code=claude_code)
-    return "\n".join(p.text for p in pieces if not p.reminder and p.source != "tool_call")[:MAX_TEXT_CHARS]
 
 
 def _split_leading_reminders(text: str) -> tuple[list[str], str]:

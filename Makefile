@@ -38,7 +38,7 @@ TEST_COMPOSE := env -u LITELLM_MASTER_KEY -u ANTHROPIC_API_KEY -u ANTHROPIC_API_
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup lint format up down logs smoke claude-env live-check ui-open ui-logs break-glass jev-check \
+.PHONY: help setup lint format up down logs smoke claude-env live-check ui-open ui-logs break-glass jev-check bench \
 	test test-unit test-e2e test-up test-down test-live k8s-render k8s-validate lane-up lane-down \
 	xai-audit xai-replay xai-report xai-review-sheet xai-import-labels
 
@@ -112,6 +112,9 @@ live-check: ## One real Claude Code turn through the gateway (MODE=subscription|
 
 break-glass: ## Break-glass for security on-call: make break-glass ARGS="issue|revoke|list|outage ..."
 	@set -a; [ -f .env ] && . ./.env; set +a; .venv/bin/python scripts/break-glass.py $(ARGS)
+
+bench: ## Time the request path (pre-call and full decision) on the frozen test configuration
+	.venv/bin/python scripts/bench_precall.py $(if $(ITERATIONS),--iterations $(ITERATIONS),)
 
 jev-check: ## Print a real Jev verdict for TEXT="..." using JEV_API_KEY from .env
 	@set -a; [ -f .env ] && . ./.env; set +a; .venv/bin/python -m ctrl_ai.semantic.jev "$(TEXT)"
