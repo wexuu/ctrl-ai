@@ -3,7 +3,7 @@
 Checks presence and prefix of the client's Authorization header only; never copies,
 logs or hashes its value. Verified on v1.103.2: inside the pre-call hook the header in
 ``proxy_server_request`` is already masked and ``secret_fields.raw_headers`` is empty, so the
-decision is made in our custom auth (``litellm_auth.py``), which sees the real request, and
+decision is made in our custom auth (``adapters/litellm/auth.py``), which sees the real request, and
 handed to the hooks in ``user_api_key_dict.metadata["ctrl_ai_route"]``. ``route_of(data)`` is the
 fallback when that is missing.
 """

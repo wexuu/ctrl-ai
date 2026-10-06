@@ -1,6 +1,6 @@
 """Who is calling: gateway keys (``state/keys.json``) and teams (``config/teams.yaml``).
 
-Pure and unit-testable on the host; ``litellm_auth.py`` is the thin LiteLLM adapter.
+Pure and unit-testable on the host; ``adapters/litellm/auth.py`` is the thin LiteLLM adapter.
 Keys are stored as SHA-256 hashes only (written by the admin panel). The raw
 key is never stored, logged or put into the returned identity.
 """

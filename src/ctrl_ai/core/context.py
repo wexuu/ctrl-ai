@@ -3,7 +3,8 @@
 Pure data classes. The pre-call hook fills a ``RequestContext``; the semantic hook and
 the logger read it back from the context cache (``ctxcache.py``) by request id. It
 never holds credentials, and holds text only in ``pieces`` and ``semantic_texts`` (the
-semantic texts are already masked where masking applies), which never reach a row.
+semantic texts are already masked where masking applies), which never reach a row and are
+emptied once the decision row is written.
 """
 
 from __future__ import annotations

@@ -106,8 +106,8 @@ def _numeric(rows: list[dict]) -> dict:
     def block(sel: list[dict]) -> dict:
         p, q, excl = [], [], {}
         for r in sel:
-            pg = r["prompt_guard"]
-            if pg.get("error") == "criterion_not_covered":
+            pg = r.get("prompt_guard")
+            if pg is None or pg.get("error") == "criterion_not_covered":
                 continue
             if r["jev"]["status"] != "ok":
                 excl["jev_" + r["jev"]["status"]] = excl.get("jev_" + r["jev"]["status"], 0) + 1
@@ -126,12 +126,18 @@ def _numeric(rows: list[dict]) -> dict:
         return res
 
     crits = sorted(
-        {r["criterion"] for r in rows if r["prompt_guard"].get("error") != "criterion_not_covered"}
+        {
+            r["criterion"]
+            for r in rows
+            if r.get("prompt_guard") and r["prompt_guard"].get("error") != "criterion_not_covered"
+        }
     )
     return {
         "all": block(rows),
         "by_criterion": {c: block([r for r in rows if r["criterion"] == c]) for c in crits},
         "score_kind": "classifier_probability",
+        # Prompt Guard was evaluated in the recorded run and is not part of the audit: its scores
+        # appear here only when the predictions carry them.
         "note": "Prompt Guard's score is a classifier output, not a calibrated probability. "
         "Jensen-Shannon divergence shows how differently the two models score the same text; "
         "it does not say which one is right.",
@@ -205,9 +211,9 @@ def build(
                 "safeguard_status": r["safeguard"]["status"],
                 "safeguard_verdict": r["safeguard"]["verdict"],
                 "safeguard_error": r["safeguard"].get("error"),
-                "prompt_guard_status": r["prompt_guard"]["status"],
-                "prompt_guard_score": r["prompt_guard"]["score"],
-                "prompt_guard_error": r["prompt_guard"].get("error"),
+                "prompt_guard_status": (r.get("prompt_guard") or {}).get("status"),
+                "prompt_guard_score": (r.get("prompt_guard") or {}).get("score"),
+                "prompt_guard_error": (r.get("prompt_guard") or {}).get("error"),
                 "human": (human.get(key) or {"state": "awaiting_labels"}),
                 "example": (example.get(key) or {"state": "awaiting_labels"}),
                 "fixture_label": (fixture.get(key) or {}).get("label"),

@@ -7,8 +7,8 @@ import time
 
 import httpx
 
+from ctrl_ai.core.settings import JevSettings, jev_settings_from_env
 from ctrl_ai.semantic.jev.questions import build_request, question_ids
-from ctrl_ai.semantic.jev.settings import Settings, settings_from_env
 from ctrl_ai.semantic.jev.verdict import normalise, verdict
 
 log = logging.getLogger("ctrl_ai.semantic.jev")
@@ -21,7 +21,7 @@ async def check_text(
     *,
     source: str = "prompt",
     timeout_s: float | None = None,
-    settings: Settings | None = None,
+    settings: JevSettings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict:
     """Ask Jev whether ``text`` is an attack on an AI agent.
@@ -32,7 +32,7 @@ async def check_text(
     start = time.perf_counter()
     truncated = False
     try:
-        settings = settings if settings is not None else settings_from_env()
+        settings = settings if settings is not None else jev_settings_from_env()
         if not settings.api_key:
             return verdict("disabled", latency_ms=0.0)
 

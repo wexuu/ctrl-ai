@@ -27,9 +27,9 @@ from dataclasses import replace
 from typing import Any, Protocol
 
 from ctrl_ai.core.scores import SampleCounts, Score
+from ctrl_ai.core.settings import JevSettings
 from ctrl_ai.semantic import judge as prompt
 from ctrl_ai.semantic.jev.client import check_text as jev_check_text
-from ctrl_ai.semantic.jev.settings import Settings as JevSettings
 
 Completion = Callable[..., Awaitable[Any]]
 

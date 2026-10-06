@@ -26,12 +26,12 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ctrl_ai.core.settings import jev_settings_from_env
 from ctrl_ai.evaluation import ablation
 from ctrl_ai.evaluation import labels as L
 from ctrl_ai.evaluation import reviewer as R
 from ctrl_ai.evaluation.report import build, publish
 from ctrl_ai.semantic.jev import check_text
-from ctrl_ai.semantic.jev.settings import settings_from_env
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,7 +108,7 @@ class Scorers:
         self._last_groq = time.monotonic()
 
     async def jev(self, text: str, source: str) -> dict:
-        k = Cache.key("jev", settings_from_env().model, source, text)
+        k = Cache.key("jev", jev_settings_from_env().model, source, text)
         if k in self.cache.data:
             self.budget.cache_hits += 1
             return self.cache.data[k]
@@ -170,15 +170,6 @@ async def cmd_run(args) -> int:
                 q = crit.split(":", 1)[1]
                 score = (jev.get("answers") or {}).get(q) if jev["status"] == "ok" else None
                 safe = await sc.reviewer(R.safeguard, "safeguard", R.SAFEGUARD_MODEL, text, crit)
-                # One second model only: Prompt Guard covered under half the questions.
-                guard = {
-                    "reviewer": "prompt_guard",
-                    "status": "skipped",
-                    "score": None,
-                    "verdict": None,
-                    "error": "not_used",
-                    "score_kind": "classifier_probability",
-                }
                 preds.append(
                     {
                         "case_id": c["case_id"],
@@ -194,7 +185,6 @@ async def cmd_run(args) -> int:
                             "route_score": jev.get("attack"),
                         },
                         "safeguard": safe,
-                        "prompt_guard": guard,
                     }
                 )
             print(f"  {c['case_id']:5} jev={jev['status']:<11} attack={jev.get('attack')}", flush=True)

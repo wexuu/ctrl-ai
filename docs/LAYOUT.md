@@ -24,8 +24,8 @@ deploy/
   otel/                   OpenTelemetry collector and Prometheus configuration
   lane/                   policy of the degraded lane
 datasets/                 synthetic casebook and fixtures for the offline audit
-docs/                     this documentation
-scripts/                  operator scripts: break-glass, smoke checks, Claude Code environment, offline audit worker
+docs/                     this documentation; ARCHITECTURE.md is the place to start
+scripts/                  operator scripts: break-glass, smoke and live checks, Claude Code environment, offline audit, benchmark
 tests/
   unit/                   mirrors src/ctrl_ai (core, detect, semantic, governance, pipeline, adapters, mcp, evaluation, admin)
   e2e/                    end-to-end tests against the keyless test stack; runtime/ is created at test time

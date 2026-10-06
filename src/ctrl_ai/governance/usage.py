@@ -1,6 +1,6 @@
 """The usage row, built from LiteLLM's standard logging object.
 
-Pure: no LiteLLM import. The adapter ``litellm_logger.py`` hands in the
+Pure: no LiteLLM import. The adapter ``adapters/litellm/logger.py`` hands in the
 ``standard_logging_object`` (which holds no credentials), the request context from
 the context cache (joined by request id) and the model catalogue.
 """

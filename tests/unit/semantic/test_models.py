@@ -8,8 +8,8 @@ import json
 import httpx
 import pytest
 
+from ctrl_ai.core.settings import JevSettings
 from ctrl_ai.semantic import judge
-from ctrl_ai.semantic.jev.settings import Settings as JevSettings
 from ctrl_ai.semantic.models import (
     PLACEHOLDER_API_KEY,
     JevModel,

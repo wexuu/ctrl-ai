@@ -4,7 +4,7 @@ Registered in the gateway config as
 ``guardrail: ctrl_ai.adapters.litellm.guardrail.CtrlAiGuardrail`` (mode ``pre_call``).
 It runs everything deterministic and everything that changes the request.
 When it refuses, it writes the decision row itself; otherwise it leaves the request
-context in the context cache for the semantic hook (``litellm_semantic.py``), which runs
+context in the context cache for the semantic hook (``adapters/litellm/semantic.py``), which runs
 alongside the model call and writes the row.
 
 ``data`` holds raw credentials (``secret_fields``, ``proxy_server_request``,

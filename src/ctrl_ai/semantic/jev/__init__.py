@@ -7,6 +7,5 @@ returns the nine-key verdict dictionary.
 from __future__ import annotations
 
 from ctrl_ai.semantic.jev.client import check_text
-from ctrl_ai.semantic.jev.settings import Settings, settings_from_env
 
-__all__ = ["Settings", "check_text", "settings_from_env"]
+__all__ = ["check_text"]

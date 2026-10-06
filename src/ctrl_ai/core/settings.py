@@ -12,9 +12,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ctrl_ai.semantic.jev.settings import Settings as JevSettings
-from ctrl_ai.semantic.jev.settings import settings_from_env as jev_settings_from_env
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CLASSIFIER_MODEL = "jev"
 DEFAULT_JUDGE_MODEL = "groq/openai/gpt-oss-safeguard-20b"
@@ -32,6 +29,48 @@ def _seconds(raw: str | None, default: float) -> float:
     except ValueError:
         return default
     return value if value > 0 else default
+
+
+# ---------------------------------------------------------------- Jev
+
+JEV_DEFAULT_URL = "https://api.typesafe.ai/v1/systemone"
+JEV_DEFAULT_TIMEOUT_S = 2.0
+JEV_DEFAULT_MODEL = "jev-1.13.0"
+
+
+@dataclass(frozen=True)
+class JevSettings:
+    """One snapshot of the Jev settings. ``api_key`` is hidden from repr."""
+
+    api_key: str = field(repr=False)
+    url: str
+    timeout_s: float
+    model: str
+
+
+def jev_settings_from_env(env: Mapping[str, str] | None = None) -> JevSettings:
+    """Read the JEV_* variables from ``env`` (the process environment by default).
+
+    The gateway reads them once at start-up (``core.settings.Settings``); the command-line
+    check and the offline scripts read them per call. Empty values fall back to the defaults;
+    a timeout that is not a positive number falls back too, so a typo cannot hang the gateway.
+    """
+    env = os.environ if env is None else env
+    try:
+        timeout_s = float(env.get("JEV_TIMEOUT_S") or JEV_DEFAULT_TIMEOUT_S)
+    except ValueError:
+        timeout_s = JEV_DEFAULT_TIMEOUT_S
+    if not timeout_s > 0:
+        timeout_s = JEV_DEFAULT_TIMEOUT_S
+    return JevSettings(
+        api_key=(env.get("JEV_API_KEY") or "").strip(),
+        url=env.get("JEV_URL") or JEV_DEFAULT_URL,
+        timeout_s=timeout_s,
+        model=env.get("JEV_MODEL") or JEV_DEFAULT_MODEL,
+    )
+
+
+# ---------------------------------------------------------------- the gateway
 
 
 @dataclass(frozen=True)

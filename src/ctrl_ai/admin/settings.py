@@ -17,10 +17,6 @@ from fastapi import Request
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _list(raw: str) -> tuple[str, ...]:
-    return tuple(p.strip() for p in raw.split(",") if p.strip())
-
-
 @dataclass(frozen=True)
 class AdminSettings:
     # The configuration files the panel edits, and the history of their versions.
@@ -37,11 +33,9 @@ class AdminSettings:
     # Logs: the gateway's audit log (read) and the admin audit log (written).
     audit_log: str
     admin_audit_log: str
-    # The gateway, for the staging chat and the model list.
+    # The gateway, for the list of models it serves (Models page).
     gateway_url: str
     master_key: str = field(repr=False)
-    ui_models: tuple[str, ...]  # the chat models the staging page offers
-    ui_keyed_models: tuple[str, ...]  # of those, the provider models whose key is set
     # The Jev trust page and the per-span latency card.
     xai_reports: str
     xai_dataset: str
@@ -68,8 +62,6 @@ class AdminSettings:
             admin_audit_log=get("CTRL_AI_ADMIN_AUDIT_LOG", "/app/logs/admin.jsonl"),
             gateway_url=get("CTRL_AI_GATEWAY_URL", "http://gateway:4000").rstrip("/"),
             master_key=get("LITELLM_MASTER_KEY", ""),
-            ui_models=_list(get("CTRL_AI_UI_MODELS", "chat-mistral,chat-groq")),
-            ui_keyed_models=_list(get("CTRL_AI_UI_KEYED_MODELS", "")),
             xai_reports=env.get("CTRL_AI_XAI_REPORTS") or str(REPO_ROOT / "reports" / "xai"),
             xai_dataset=env.get("CTRL_AI_XAI_DATASET") or str(REPO_ROOT / "datasets" / "xai"),
             prometheus_url=get("CTRL_AI_PROMETHEUS_URL", "").rstrip("/"),

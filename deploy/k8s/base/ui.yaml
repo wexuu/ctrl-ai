@@ -36,7 +36,6 @@ spec:
             - {name: CTRL_AI_ADMIN_AUDIT_LOG, value: /app/state/admin.jsonl}
             - {name: CTRL_AI_AUDIT_LOG, value: /app/state/audit.jsonl}
             - {name: CTRL_AI_PROMETHEUS_URL, value: "http://prometheus:9090"}
-            - {name: CTRL_AI_UI_MODELS, value: "chat-groq"}
           readinessProbe:
             httpGet: {path: /api/health, port: http}
           livenessProbe:

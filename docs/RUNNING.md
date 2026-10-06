@@ -1,6 +1,6 @@
 # Running the ctrl-ai gateway
 
-The gateway is the LiteLLM proxy from a pinned Docker image, on `http://localhost:4000`, bound to 127.0.0.1 only, with no database.
+The gateway is the LiteLLM proxy from a pinned Docker image with the ctrl-ai hooks, on `http://localhost:4000`, bound to 127.0.0.1 only, with no database. [ARCHITECTURE.md](ARCHITECTURE.md) describes what it does with each request.
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ A variable exported in your shell overrides the same variable in `.env`.
 ## Start and stop
 
 ```
-make up        # starts the gateway and waits until it is healthy (about 10 seconds)
+make up        # starts the gateway, the admin app, Redis and the telemetry services; waits until healthy
 make smoke     # health and auth checks; makes no model call
 make down      # stops it
 ```
@@ -67,21 +67,40 @@ It uses your Claude subscription for one or two short prompts.
 ## Logs
 
 - **Gateway logs:** `make logs`. At the default level they hold request lines and errors, no prompt text and no keys. Do not turn on LiteLLM's debug logging: in pass-through mode it may print request headers.
-- **Audit log:** `logs/audit.jsonl`, one JSON object per line. A `decision` row per checked request and a `usage` row per finished request, joined by `request_id`. It never holds prompt text, header values or keys.
+- **Audit log:** `logs/audit.jsonl`, one JSON object per line. A `decision` row per checked request and a `usage` row per finished request, joined by `request_id`, plus `tool`, `shadow`, `incident` and `break_glass` rows. It never holds prompt text, header values or keys ([GATEWAY.md](GATEWAY.md)).
 
 ```
 tail -f logs/audit.jsonl
 tail -n 20 logs/audit.jsonl | jq -c '{type, decision, rule, status, jev: .jev.status}'
 ```
 
-## Staging UI
+## Admin panel and dashboard
 
-`make up` also starts a small web page on `http://localhost:4100` (`make ui-open` prints the URL, `make ui-logs` follows its log). It has two halves:
+`make up` also starts the admin app on `http://localhost:4100` (`make ui-open` prints the URL, `make ui-logs` follows its log). It binds to 127.0.0.1 unless `CTRL_AI_UI_BIND` says otherwise. It has no sign-in (see [ADMIN.md](ADMIN.md)), so keep it on a trusted network. Its pages:
 
-- **Chat** with a free-tier model through the gateway, so the guardrail and Jev run on every message. Under each message: allowed or blocked, the rule, Jev's score, guard time, tokens and cost.
-- **Log viewer**: the whole audit log (Claude Code, curl and test traffic too), newest first, with filters, totals and the current policy mode and version. Click a row for the full record.
+| Page | What it shows or edits |
+|---|---|
+| `/dashboard` (also `/`) | Management (spend, budgets, forecast, adoption), Security & compliance (blocks, findings, masking, reroutes, semantic scores, tools, break-glass) and Operations (latency, errors, fallbacks, outages), with period and team filters and an auditor export |
+| `/audit` | The audit log, newest request first; click a row for its decision and usage rows |
+| `/jev-trust` | The classifier and the second model on live traffic and the offline audit report ([XAI.md](XAI.md)) |
+| `/admin/policy` | The policy: profiles, rules, packs, thresholds; a rule tester |
+| `/admin/security` | Prompt-injection safeguards, personal-data protection, loop caps and timeouts, break-glass settings |
+| `/admin/models` | The model catalogue: approved, trial, banned models, prices, fallbacks |
+| `/admin/teams` | Departments, teams, budgets, gateway keys, break-glass overrides, the semantic-outage switch |
+| `/admin/tools` | Approved MCP servers and tools, pin status, re-pinning a reviewed description |
+| `/admin/history` | Every saved version of each configuration file, with diffs and rollback |
 
-The chat cannot use the Claude subscription. It uses `chat-mistral` or `chat-groq`, which need a free API key in `.env` (`MISTRAL_API_KEY`, `GROQ_API_KEY`); a model without a key is hidden. `CTRL_AI_UI_MODELS` picks which of them the page offers. Messages go to that provider unmasked and may be used for training: never type real data. The page keeps the chat only in the browser; the UI writes nothing to disk, and the master key never reaches the browser.
+Every change is validated, versioned and written to the admin audit log (`logs/admin.jsonl`).
+
+## Running with a configuration profile
+
+`make up PROFILE=bank` starts the gateway and the admin app on the bank demo profile in `config/profiles/bank/` instead of the example organisation in `config/` ([CONFIGURATION.md](CONFIGURATION.md)).
+
+## Running without paid keys
+
+- **Keyless test stack.** `make test-up` runs the gateway against stub Anthropic and Jev servers with fake keys from `tests/e2e/test.env`; nothing leaves the machine ([TESTING.md](TESTING.md)).
+- **Decision models.** Set `CTRL_AI_CLASSIFIER_MODEL=none` to run without Jev, and point the judge at a local OpenAI-compatible server ([MODELS.md](MODELS.md)). The deterministic checks run either way.
+- **Claude Code on a subscription.** Subscription pass-through needs no provider key (below).
 
 ## Running without the guardrail
 
@@ -96,12 +115,12 @@ Nothing is checked or audited in this mode.
 ## Troubleshooting
 
 - **The container exits with code 3 and `ModuleNotFoundError`** (for example `No module named 'ctrl_ai'`, followed by `ImportError: Could not import ctrl_ai_logger from ctrl_ai.adapters.litellm.logger`): a mount or `PYTHONPATH` is missing. Check that `docker compose config` shows `src/ctrl_ai` mounted at `/app/ctrl_ai` with `PYTHONPATH: /app`.
-- **`400 No connected db.`**: the gateway key is wrong or missing from the request. With no database LiteLLM tries to look an unknown key up as a database key. In subscription mode this means `ANTHROPIC_CUSTOM_HEADERS` is not set in the shell Claude Code runs in. A request with no key at all gets 401.
+- **`401 Invalid or revoked ctrl-ai key`**: the gateway key is wrong, revoked, expired or missing. In subscription mode this usually means `ANTHROPIC_CUSTOM_HEADERS` is not set in the shell Claude Code runs in. Keys are issued on the Teams page and stored as hashes in `state/keys.json`.
 - **`Invalid model name`**: the `claude-*` wildcard entry is missing from the config. Claude Code asks for whatever model its user has selected.
 - **`HEAD /api/hello` answered 404 in the gateway log**: harmless. Claude Code probes for it.
 - **Files in `logs/` owned by root**: the container created them. Use `make up`, which creates `logs/audit.jsonl` as your user first.
 - **`required variable LITELLM_MASTER_KEY is missing a value`**: there is no `.env`, or the key is not set in it.
-- **A traceback with `No api key passed in.` in the gateway log**: LiteLLM logs every unauthenticated request this way. `make smoke` sends one on purpose.
+- **A refused-key line in the gateway log after `make smoke`**: expected; the smoke check sends a request without a key and one with a wrong key on purpose.
 - **Empty folders named `state`, `logs` or `config` appear in the repo**: Docker creates a missing bind-mount source as root. `make up` creates them as your user first; remove the root-owned ones with `sudo rm -r` and run `make up` again.
-- **Port 4000 is already in use**: another gateway is running. `docker ps` shows it; `make down` in that checkout stops it.
+- **Port 4000 is already in use**: another gateway is running. `docker ps` shows it; `make down` in that checkout stops it. To run a second stack beside it, set `CTRL_AI_GATEWAY_PORT` and `CTRL_AI_UI_PORT`.
 - **`make up` times out waiting for health**: `make logs` shows why. Do not probe `GET /health`: it makes a real model call for every configured model.

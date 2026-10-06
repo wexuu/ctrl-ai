@@ -216,16 +216,6 @@ def test_reviewer_parsing_and_unknowns():
     assert r["status"] == "unknown" and r["verdict"] is None
 
 
-def test_prompt_guard_covers_injection_only_and_long_inputs_are_mismatched():
-    async def post(body):
-        return 200, {"choices": [{"message": {"content": "0.5"}}]}
-
-    r = asyncio.run(R.prompt_guard("x", "prompt:harmful_misuse", post=post))
-    assert r["error"] == "criterion_not_covered"
-    r = asyncio.run(R.prompt_guard("x" * 5000, "prompt:instruction_override", post=post))
-    assert r["error"] == "input_coverage_mismatch"
-
-
 def test_reviewer_refuses_gateway_endpoint(monkeypatch):
     monkeypatch.setenv("CTRL_AI_XAI_REVIEWER_URL", "http://localhost:4000/v1/chat/completions")
     with pytest.raises(ValueError):

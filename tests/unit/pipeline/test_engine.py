@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -443,3 +445,25 @@ def test_build_engine_models_per_role(tmp_path):
     assert isinstance(built.shadow, LiteLLMModel) and built.shadow.name == "openai/llama3.1"
     assert built.shadow.api_base == "http://localhost:11434/v1"
     assert built.classifier_timeout_s == 8.0  # CTRL_AI_CLASSIFIER_TIMEOUT_S default
+
+
+@pytest.mark.asyncio
+async def test_the_cached_context_keeps_no_request_text(tmp_path):
+    fixtures = Path(__file__).resolve().parents[2] / "fixtures" / "config"
+    engine = Engine(
+        policy_store=PolicyStore(str(fixtures / "policy.yaml")),
+        audit=AuditLog(str(tmp_path / "audit.jsonl")),
+        masking_secret="ctrl-ai-test-masking-secret",
+        classifier=FakeJev(),
+    )
+    iban = "PL61 1090 1014 0000 0712 1981 2874"
+    body = messages(f"{PROMPT} for {iban}")
+    ctx = await engine.pre_call(copy.deepcopy(body), request_id="req-text")
+    assert ctx.pieces and ctx.semantic_texts  # the checks still need the text before the decision
+
+    decision = await engine.evaluate(body, request_id="req-text")
+    cached = engine.cache.get("req-text")
+    assert cached is decision.ctx and decision.row["text_chars"] > 0
+    assert cached.pieces == [] and cached.semantic_texts == {}
+    # The surrogate map stays: the restore hook needs it until the response is done.
+    assert iban in cached.mask_map.values()

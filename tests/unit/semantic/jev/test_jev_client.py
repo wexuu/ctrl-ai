@@ -7,7 +7,8 @@ import logging
 import httpx
 import pytest
 
-from ctrl_ai.semantic.jev import check_text, settings_from_env
+from ctrl_ai.core.settings import jev_settings_from_env as settings_from_env
+from ctrl_ai.semantic.jev import check_text
 from ctrl_ai.semantic.jev.client import MAX_TEXT_CHARS
 
 KEY = "jev-unit-test-key-0123456789"  # matches the jev_env fixture

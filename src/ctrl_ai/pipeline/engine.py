@@ -224,7 +224,11 @@ class Engine:
                 self.audit.write(row)
             ctx.row_written = True
         ctx.semantic_pending = False
-        # The logger joins the usage row with this context by request id.
+        # The decision is made and recorded: the request's text leaves the context before it goes
+        # back into the cache, where only the logger (usage row) and the restore hook (the
+        # surrogate map) read it.
+        ctx.pieces = []
+        ctx.semantic_texts = {}
         self.cache.put(ctx.request_id, ctx)
         message = ctx.message if ctx.decision == "block" else None
         return Decision(ctx.decision, ctx.rule, ctx.would_block, message, row, ctx)

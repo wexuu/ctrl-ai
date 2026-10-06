@@ -19,7 +19,7 @@ from ctrl_ai.pipeline.runtime import get_engine
 
 
 class CtrlAiSemanticGuardrail(CustomGuardrail):
-    # No apply_guardrail method on purpose (see litellm_guardrail.py).
+    # No apply_guardrail method on purpose (see guardrail.py).
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)

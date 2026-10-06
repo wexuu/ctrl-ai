@@ -4,17 +4,17 @@ ctrl-ai is a few stateless services around one pinned image (`ghcr.io/berriai/li
 
 | Service | What it does | State |
 |---|---|---|
-| `gateway` | LiteLLM proxy + ctrl-ai guardrail, logger and MCP guard | none (config files read-only, keys and break-glass register read-only, counters in Redis) |
-| `ui` | Staging chat, admin panel, dashboard | writes config history, keys file, admin log |
+| `gateway` | LiteLLM proxy with the ctrl-ai auth, guardrails, logger and MCP checks | none (config files read-only, keys and break-glass register read-only, counters in Redis) |
+| `ui` | Admin panel, dashboard, audit and Jev trust pages | writes config files and their history, keys file, break-glass register, admin log |
 | `redis` | Shared counters (loops, budgets) for all gateway replicas | ephemeral |
 | `otel-collector`, `prometheus` | OpenTelemetry pipeline (docs/OBSERVABILITY.md) | metrics only |
-| `mcp-stub` | Fake Jira/wiki MCP server for tests | none |
+| `mcp-stub`, `mcp-stub-docs` | Example MCP servers (`tickets`, `confluence` in `config/mcp.yaml`) with fake data | none |
 | `gateway-lane` | Degraded lane, started only on demand | none |
 
 ## 1. Laptop: Docker Compose
 
 ```
-cp .env.example .env       # set LITELLM_MASTER_KEY, JEV_API_KEY, GROQ_API_KEY
+cp .env.example .env       # set LITELLM_MASTER_KEY; JEV_API_KEY and GROQ_API_KEY for the default decision models
 make setup && make up      # gateway :4000, ui :4100 (localhost only)
 make smoke
 ```
@@ -44,20 +44,10 @@ Design points:
 - **Configuration**: `configMapGenerator` builds ConfigMaps from `config/*.yaml` and `deploy/litellm/config.yaml`, so a change gets a new hash name and rolls out. Inside a running pod the gateway's live reload also works with ConfigMap volume updates: kubelet swaps a symlink atomically and the stores' `os.stat()` follows it, so `(mtime, size)` changes. In the cluster, configuration is GitOps-managed: the admin panel shows and validates it; the change itself is a pull request (the panel's history and diff are the review material). On a single host, the panel saves directly.
 - **Secrets** are referenced, never included: the local overlay generates `ctrl-ai-secrets` from `secrets.env` (git-ignored, created from `secrets.env.example`); the AWS overlay uses an `ExternalSecret` (External Secrets Operator) reading `ctrl-ai/gateway` from AWS Secrets Manager.
 - **NetworkPolicy**: default deny; gateway ingress only from namespaces labelled `ai-gateway-client=true` and from the UI; egress only to DNS, Redis, the collector, MCP servers and HTTPS. Narrowing HTTPS to the provider and Jev hostnames (`api.anthropic.com`, `api.groq.com`, `api.mistral.ai`, `api.typesafe.ai`) needs a CNI with FQDN policies, such as Cilium (`toFQDNs`).
-- **Logs**: in Kubernetes the audit log is JSON on stdout (`CTRL_AI_AUDIT_LOG=/dev/stdout`) and the cluster's log agent ships it to the log store / SIEM. The dashboard then reads from the log store instead of a file: future work (an `analytics` reader for OpenSearch or CloudWatch Logs Insights).
+- **Logs**: in Kubernetes the audit log is JSON on stdout (`CTRL_AI_AUDIT_LOG=/dev/stdout`) and the cluster's log agent ships it to the log store / SIEM. The dashboard reads the audit log from a file (`src/ctrl_ai/admin/records.py`); in a cluster it needs a reader for the log store (OpenSearch, CloudWatch Logs Insights), which the repository does not include.
 - **State**: `ctrl-ai-state` (ReadWriteMany: EFS on AWS) holds `keys.json` (hashes only) and `break_glass.json`; the gateway mounts it read-only.
 
-Validation run on this machine (no cluster; minikube was not started):
-
-```
-$ make k8s-validate
-local: 21 objects rendered
-  ConfigMap, Deployment, HorizontalPodAutoscaler, Namespace, NetworkPolicy, PersistentVolumeClaim, PodDisruptionBudget, Secret, Service
-aws: 20 objects rendered
-  ConfigMap, Deployment, ExternalSecret, HorizontalPodAutoscaler, Ingress, Namespace, NetworkPolicy, PersistentVolumeClaim, PodDisruptionBudget, Service, ServiceAccount
-```
-
-`kubectl apply --dry-run=client` needs API discovery from a cluster and fails without one, so the check renders and verifies every object's `apiVersion`, `kind` and `metadata.name` instead. Both images were built once (`docker build ... -f deploy/docker/Dockerfile .` and `deploy/docker/Dockerfile.admin`) and run as uid 10001.
+`make k8s-validate` renders both overlays and checks every object's `apiVersion`, `kind` and `metadata.name`, with no cluster (`kubectl apply --dry-run=client` needs API discovery from a cluster). Both images run as uid 10001.
 
 ## 3. Enterprise: EKS or ECS
 
@@ -68,7 +58,7 @@ Scaling notes:
 
 - Gateway replicas are stateless; anything shared (loop counters, budget spend) lives in Redis, so replicas can be added freely.
 - Jev's per-account rate limit (80 requests per second) is shared by all replicas: at high volume, either raise the account limit or sample the semantic check for low-risk profiles.
-- The deterministic checks add a few milliseconds per request; the semantic check (Jev) runs in parallel with them and dominates the gateway overhead.
+- The deterministic checks add well under a millisecond per request ([PERFORMANCE.md](PERFORMANCE.md)); the semantic check runs alongside the model call, and the decision models' latency dominates the gateway's own cost.
 
 ## 4. Degraded lane runbook (break-glass)
 
@@ -79,9 +69,9 @@ Scaling notes:
 **How.**
 
 1. Incident open, ticket number in hand; security on-call agrees.
-2. `make lane-up` (host port `CTRL_AI_LANE_PORT`, default 4050) on the gateway host, or scale up the `gateway-lane` Deployment in the cluster.
+2. `make lane-up` on the gateway host (host port `CTRL_AI_LANE_PORT`, default 4050). The Kubernetes manifests have no lane Deployment; in a cluster, run a gateway Deployment with `deploy/litellm/config.lane.yaml` and `deploy/lane/policy.lane.yaml`.
 3. Switch clients: push the managed settings (Claude Code `ANTHROPIC_BASE_URL`, the OpenAI SDK `base_url`) to the lane's URL, or move the DNS name (`ai-gateway.example.internal`) to the lane's load balancer. A DNS switch needs no client change.
 4. The lane writes the same audit log (decision rows record `jev.status: "skipped"` and the lane policy's version), so the dashboard keeps showing traffic and the auditor can see exactly which requests went through the lane.
 5. Time-box: the lane is stopped as soon as the main gateway is healthy (`make lane-down`, clients switched back). Record start, end and ticket in the incident.
 
-Verified on this machine: `CTRL_AI_LANE_PORT=4450 docker compose -p ctrl-ai-b-lane --profile lane up -d --wait gateway-lane` started healthy; a normal `chat-groq` request answered 200; a prompt with a fake AWS key was refused (`Blocked by ctrl-ai: rule aws-access-key`); both decision rows had `jev.status: "skipped"` and `policy_version` equal to the lane policy's hash (`4b2a2cbd`).
+To check a lane: send a normal request (200) and a prompt with a fake AWS key (refused with `Blocked by ctrl-ai: rule aws-access-key`); both decision rows carry `jev.status: "skipped"` and the lane policy's `policy_version`.

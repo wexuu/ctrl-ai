@@ -1,10 +1,10 @@
-# Jev trust: one second model and the trust report
+# Jev trust: the second model and the offline audit
 
-Jev's verdicts are checked by **one second model**, live and offline.
+How far the classifier's verdicts can be trusted is checked in two ways: live, by a second model that looks again at a share of the traffic, and offline, by an audit that scores a synthetic casebook with both models and with human labels. The Jev trust page (`/jev-trust`) shows both. [MODELS.md](MODELS.md) describes the model roles and how to configure them; this page covers the default second model and the audit.
 
-## The second model: `openai/gpt-oss-safeguard-20b` (Groq)
+## The second model: `groq/openai/gpt-oss-safeguard-20b`
 
-A safety model that judges text against a policy we write. It has three live jobs and one offline job:
+A safety model that judges text against a policy written for the gateway (`src/ctrl_ai/semantic/judge.py`). It is the default for the judge and shadow roles, and the reviewer in the offline audit:
 
 | Job | When | Where |
 |---|---|---|
@@ -17,7 +17,7 @@ It answers yes or no (`{"verdict": 0|1, "category", "reason"}`), so a live score
 
 **Drift.** The Jev trust page shows, from the audit log, how often the second model agrees with Jev on the shadow sample, per day (per hour while there is one day of data). When a day with at least `min_checks` checks falls below `alert_below` (90%), the page raises a drift alert. The response is human: review the possible misses, and if Jev has drifted, switch it off on the Policy page so the second model decides alone. Agreement is not accuracy: two models can share a blind spot, and once Jev is off nothing machine-checks the second model, so human labels stay the referee for both.
 
-Prompt Guard (`meta-llama/llama-prompt-guard-2-86m`) was dropped: it covered fewer than half of the question pairs (injection questions under ~1,800 characters only) and its uncalibrated pattern score missed indirect and non-English injections.
+Prompt Guard (`meta-llama/llama-prompt-guard-2-86m`) was evaluated as a second reviewer and not kept: it covers fewer than half of the question pairs (injection questions under about 1,800 characters only), and its uncalibrated pattern score misses indirect and non-English injections. The recorded run below still carries its scores, and the report shows them when present.
 
 ## Commands
 
@@ -31,7 +31,10 @@ Prompt Guard (`meta-llama/llama-prompt-guard-2-86m`) was dropped: it covered few
 
 The page is **Jev trust** (`/jev-trust`). It reads `reports/xai/latest.json` and makes no model calls.
 
-## What the committed recorded run showed (24 synthetic cases, 48 question pairs; the casebook now has 39)
+## The committed recorded run (24 synthetic cases, 48 question pairs)
+
+The casebook (`datasets/xai/cases.jsonl`) holds 39 cases; the recorded run in `datasets/xai/recorded/` scored 24 of them.
+
 
 - **Agreement with the safeguard model: 85%** (46 of 48 pairs compared). The two that were not compared are the long-input case, where inputs differ.
 - **Disagreements are mostly one-directional.** Jev flags and the reviewer clears in 6 cases; the reverse happens in 1.
@@ -44,5 +47,5 @@ The page is **Jev trust** (`/jev-trust`). It reads `reports/xai/latest.json` and
 ## Deliberate choices and limits
 
 - **Control spans** may overlap each other but never the candidate span. A strict non-overlap rule would make almost every short text unexplainable.
-- **The monitor runs on illustrative window fixtures** (`datasets/xai/fixtures/`). A `incompatible_reason` column was added to tell a population change from a version change. Twenty-four measured cases cannot drive a real drift alarm.
+- **The monitor runs on illustrative window fixtures** (`datasets/xai/fixtures/`). An `incompatible_reason` column tells a population change from a version change. Twenty-four measured cases cannot drive a real drift alarm.
 - **Not built:** stratified sampling of live traffic (no prompt store exists, by design), the improvement/approval workflow, numeric native label-pair scoring, LIME/SHAP/IG, and passive pipeline signals beyond the existing dashboard.

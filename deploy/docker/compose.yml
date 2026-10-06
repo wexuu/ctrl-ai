@@ -91,10 +91,6 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
       CTRL_AI_AUDIT_LOG: /app/logs/audit.jsonl
       CTRL_AI_POLICY_FILE: ${CTRL_AI_POLICY_FILE:-/app/config/policy.yaml}
-      CTRL_AI_UI_MODELS: ${CTRL_AI_UI_MODELS:-chat-mistral,chat-groq}
-      # Only the names of the provider models whose key is set, never the keys themselves,
-      # so the page can hide a model that would fail with an authentication error.
-      CTRL_AI_UI_KEYED_MODELS: "${MISTRAL_API_KEY:+chat-mistral},${GROQ_API_KEY:+chat-groq}"
       # The files the admin panel edits.
       CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
       CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}

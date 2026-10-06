@@ -1,6 +1,6 @@
 # Admin panel: access, roles and change control
 
-The admin panel (`/admin/policy`, `/admin/models`, `/admin/teams`, `/admin/history`, `/admin/tools`) and the dashboard (`/dashboard`) are served by the same FastAPI app as the staging chat (`src/ctrl_ai/admin/app.py`, port 4100).
+The admin panel (`/admin/policy`, `/admin/security`, `/admin/models`, `/admin/teams`, `/admin/tools`, `/admin/history`), the dashboard (`/dashboard`), the audit page (`/audit`) and the Jev trust page (`/jev-trust`) are one FastAPI app (`ctrl_ai.admin.app:create_app`, port 4100). It reads its settings from the environment once, when it starts (`src/ctrl_ai/admin/settings.py`); [RUNNING.md](RUNNING.md) describes the pages.
 
 ## Open access: no sign-in
 
@@ -39,11 +39,11 @@ In production the panel sits behind the organisation's central identity provider
 
 | File | Page | Schema |
 |---|---|---|
-| `config/policy.yaml` | Policy | `config/schema/policy.schema.json` |
+| `config/policy.yaml` | Policy, Security | `config/schema/policy.schema.json` |
 | `config/models.yaml` | Models | `config/schema/models.schema.json` |
 | `config/teams.yaml` | Teams | `config/schema/teams.schema.json` |
 | `config/mcp.yaml` | Tools | `config/schema/mcp.schema.json` |
 | `state/keys.json` | Teams (keys) | `config/schema/keys.schema.json` |
-| `state/break_glass.json` | Teams (revoke only) | `config/schema/break_glass.schema.json` |
+| `state/break_glass.json` | Teams (revoking overrides, the semantic-outage switch) | `config/schema/break_glass.schema.json` |
 
-The gateway re-reads each file when it changes (live reload); no restart.
+The gateway re-reads each file when it changes (live reload); no restart. Break-glass overrides are issued from the command line (`make break-glass ARGS="issue ..."`, `scripts/break-glass.py`), not from the panel.

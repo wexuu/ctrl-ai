@@ -23,22 +23,7 @@ make bench                      # or: .venv/bin/python scripts/bench_precall.py 
 
 The numbers below come from a 4-vCPU virtual machine (`QEMU Virtual CPU version 2.5+`), Python 3.13. Absolute numbers depend on the machine; compare runs made on the same one.
 
-## Baseline
-
-| Shape | Stage | p50 ms | p95 ms | max ms | peak KiB |
-|---|---|---:|---:|---:|---:|
-| short prompt | pre_call | 0.188 | 0.239 | 0.402 | 11.2 |
-| short prompt | evaluate | 0.397 | 0.491 | 0.861 | 11.7 |
-| long prompt | pre_call | 0.992 | 1.180 | 1.724 | 11.4 |
-| long prompt | evaluate | 1.210 | 1.401 | 1.935 | 11.7 |
-| tool result | pre_call | 1.212 | 1.500 | 2.000 | 11.6 |
-| tool result | evaluate | 1.405 | 1.699 | 2.097 | 11.8 |
-| masked identifiers | pre_call | 0.665 | 1.090 | 1.231 | 16.2 |
-| masked identifiers | evaluate | 0.830 | 1.060 | 1.599 | 16.4 |
-| claude code | pre_call | 0.231 | 0.310 | 0.415 | 11.5 |
-| claude code | evaluate | 0.437 | 0.516 | 0.625 | 11.9 |
-
-## After tuning
+## Results
 
 | Shape | Stage | p50 ms | p95 ms | max ms | peak KiB |
 |---|---|---:|---:|---:|---:|
@@ -53,4 +38,27 @@ The numbers below come from a 4-vCPU virtual machine (`QEMU Virtual CPU version 
 | claude code | pre_call | 0.182 | 0.228 | 0.323 | 8.4 |
 | claude code | evaluate | 0.389 | 0.476 | 0.576 | 11.8 |
 
-The profile of the deterministic path (cProfile over all five shapes) was led by three regular-expression scans over long texts. The IBAN candidate pattern and the international phone pattern started with a look-behind, which makes Python's `re` try every position of the text; they now match without it and check the preceding character in code (`detectors._finditer`), which finds exactly the same matches about four times faster. Signatures written as an alternation of literals (`pickle.loads(` or `torch.load(...)`) were tried as a whole at every position; each alternative is now searched on its own, which finds a match exactly when the alternation does and lets `re` jump to the literal (about seven times faster for those signatures), and the compiled rules are built once per signature feed instead of once per request. The digit windows that the PESEL, NIP, card, NRB and national-phone detectors scan are now found by a pattern that skips runs too short to matter, and the teams and the catalogue are read once per request instead of twice. Each text is scanned by the identifier detectors once per request: the scan (`detectors.Scans`) is created for the request, shared by the identifier rules and by masking, and dropped when the pre-call step ends, so no request text is kept in the process after the request (an earlier cache of the 32 most recent texts is gone). Detection is unchanged: the unit tests, the policy regression cases and the end-to-end suite pass as before. What remains is spread thin: the remaining pattern scans (policy rules, secrets, signatures), the per-request reads of the four configuration files (one `os.stat` each), masking's encryption of the surrogate map, and the bookkeeping of building the context and the row.
+## Where the time goes
+
+The profile of the deterministic path (`python -m cProfile` over the benchmark) is flat: the pattern scans of the policy rules, the secrets and signature packs, the identifier detectors over the digit runs, one `os.stat` per configuration file (policy, teams, catalogue, signature feed), masking's encryption of the surrogate map, and building the context and the row. Three implementation choices keep the scans cheap on long texts:
+
+- **No leading look-behind.** A pattern that starts with a look-behind makes Python's `re` try every position of the text; one that starts with a character class or a literal lets it jump to the candidates. The IBAN and international phone candidates match without their look-behind, and `detectors._finditer` checks the preceding character in code, which gives exactly the same matches about four times faster.
+- **Alternations searched branch by branch.** A signature such as `pickle.loads(` or `torch.load(...)` occurs exactly when one of its alternatives does; searching each alternative on its own lets `re` jump to its literal, about seven times faster than trying the whole alternation at every position. The compiled rules are built once per signature feed.
+- **One detection pass per text per request.** The digit windows are found by a pattern that skips runs too short to hold an identifier; each text is scanned by the identifier detectors once per request (`detectors.Scans`), shared by the identifier rules and by masking, and dropped when the pre-call step ends, so no request text stays in the process after the request. The teams and the catalogue are read once per request.
+
+## Reference: the same checks without these choices
+
+For comparison, the same benchmark on the same machine with leading look-behinds, whole alternations, signature rules built per request and the detectors keyed on the text:
+
+| Shape | Stage | p50 ms | p95 ms | max ms | peak KiB |
+|---|---|---:|---:|---:|---:|
+| short prompt | pre_call | 0.188 | 0.239 | 0.402 | 11.2 |
+| short prompt | evaluate | 0.397 | 0.491 | 0.861 | 11.7 |
+| long prompt | pre_call | 0.992 | 1.180 | 1.724 | 11.4 |
+| long prompt | evaluate | 1.210 | 1.401 | 1.935 | 11.7 |
+| tool result | pre_call | 1.212 | 1.500 | 2.000 | 11.6 |
+| tool result | evaluate | 1.405 | 1.699 | 2.097 | 11.8 |
+| masked identifiers | pre_call | 0.665 | 1.090 | 1.231 | 16.2 |
+| masked identifiers | evaluate | 0.830 | 1.060 | 1.599 | 16.4 |
+| claude code | pre_call | 0.231 | 0.310 | 0.415 | 11.5 |
+| claude code | evaluate | 0.437 | 0.516 | 0.625 | 11.9 |

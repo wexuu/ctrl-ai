@@ -1,8 +1,11 @@
 """A bounded in-process cache of request contexts, keyed by request id.
 
 Passes state between the hooks of one request (pre-call → semantic → post-call →
-logger). Entries expire after ten minutes; the oldest are dropped past 10,000. It
-holds no credentials; the only text it holds is what masking needs to restore values.
+logger). Entries expire after ten minutes; the oldest are dropped past 10,000. It holds no
+credentials. Between the pre-call and the semantic hook a context still carries the request's
+checked text; once the decision row is written (``Engine.finish``) the text is dropped, and
+the one sensitive value left is the surrogate map (real values by surrogate), which the restore
+hook needs until the response is done.
 """
 
 from __future__ import annotations
