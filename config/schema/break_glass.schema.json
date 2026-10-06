@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/break_glass.schema.json",
+  "title": "Break-glass override register (state/break_glass.json). Runtime state, never committed.",
+  "description": "Written by scripts/break-glass.py and shown by the admin panel. The token itself is never stored, only its id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "overrides"
+  ],
+  "properties": {
+    "overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "subject",
+          "relax",
+          "reason",
+          "issued_by",
+          "issued_at",
+          "expires_at",
+          "revoked"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^bg_[a-f0-9]{8}$"
+          },
+          "subject": {
+            "type": "string",
+            "description": "team:<id> or user:<name>"
+          },
+          "relax": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3
+          },
+          "ticket": {
+            "type": "string"
+          },
+          "issued_by": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "semantic_outage": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "Manual semantic-outage switch set by security on-call (scripts/break-glass.py outage).",
+      "required": [
+        "active",
+        "mode",
+        "reason",
+        "issued_by",
+        "issued_at",
+        "expires_at"
+      ],
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "degrade",
+            "fail_closed",
+            "normal"
+          ],
+          "description": "normal forces semantic checks back on (closes the circuit)."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 3
+        },
+        "ticket": {
+          "type": "string"
+        },
+        "issued_by": {
+          "type": "string"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

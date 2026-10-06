@@ -1,0 +1,235 @@
+name: ctrl-ai
+
+# Run from the repository root: `make up`, or
+#   docker compose --project-directory . -f deploy/docker/compose.yml up -d --wait
+# Paths below are relative to the repository root. The test stack adds compose.test.yml.
+
+services:
+  gateway:
+    # Pinned. Digest: sha256:f63fb81b831b170ec16851e23c36ac5bf52ef106b271406429524a2ed730bbfd
+    # Never `latest`, and nothing older: 1.103.1 fixed a critical flaw.
+    image: ghcr.io/berriai/litellm:v1.103.2
+    command: ["--config", "${CTRL_AI_GATEWAY_CONFIG:-/app/gateway/config.yaml}", "--port", "4000"]
+    # No env_file on purpose: every variable is passed explicitly, so the test
+    # suite can swap in its own file with --env-file and a real key in .env can
+    # never reach a test run.
+    environment:
+      # Required: with no master key LiteLLM serves unauthenticated requests.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Always set: unset or empty makes LiteLLM silently use the real API.
+      ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-https://api.anthropic.com}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      # Free-tier provider keys for the staging chat models (chat-mistral, chat-groq).
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      JEV_URL: ${JEV_URL:-https://api.typesafe.ai/v1/systemone}
+      JEV_TIMEOUT_S: ${JEV_TIMEOUT_S:-2.0}
+      JEV_MODEL: ${JEV_MODEL:-jev-1.13.0}
+      CTRL_AI_POLICY_FILE: ${CTRL_AI_POLICY_FILE:-/app/config/policy.yaml}
+      CTRL_AI_AUDIT_LOG: ${CTRL_AI_AUDIT_LOG:-/app/logs/audit.jsonl}
+      # Configuration files the gateway re-reads when they change.
+      CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
+      CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}
+      CTRL_AI_SIGNATURES_FILE: ${CTRL_AI_SIGNATURES_FILE:-/app/config/signatures.yaml}
+      CTRL_AI_MCP_FILE: ${CTRL_AI_MCP_FILE:-/app/config/mcp.yaml}
+      CTRL_AI_KEYS_FILE: ${CTRL_AI_KEYS_FILE:-/app/state/keys.json}
+      CTRL_AI_BREAKGLASS_FILE: ${CTRL_AI_BREAKGLASS_FILE:-/app/state/break_glass.json}
+      CTRL_AI_REDIS_URL: ${CTRL_AI_REDIS_URL:-redis://redis:6379/0}
+      CTRL_AI_BREAKGLASS_SECRET: ${CTRL_AI_BREAKGLASS_SECRET:-}
+      CTRL_AI_MASKING_SECRET: ${CTRL_AI_MASKING_SECRET:-}
+      # Decision models per role (docs/MODELS.md): "jev", "none" or a LiteLLM model string.
+      CTRL_AI_CLASSIFIER_MODEL: ${CTRL_AI_CLASSIFIER_MODEL:-jev}
+      CTRL_AI_CLASSIFIER_API_BASE: ${CTRL_AI_CLASSIFIER_API_BASE:-}
+      CTRL_AI_CLASSIFIER_TIMEOUT_S: ${CTRL_AI_CLASSIFIER_TIMEOUT_S:-8}
+      CTRL_AI_JUDGE_MODEL: ${CTRL_AI_JUDGE_MODEL:-groq/openai/gpt-oss-safeguard-20b}
+      CTRL_AI_JUDGE_API_BASE: ${CTRL_AI_JUDGE_API_BASE:-}
+      CTRL_AI_JUDGE_TIMEOUT_S: ${CTRL_AI_JUDGE_TIMEOUT_S:-8}
+      # Empty: the shadow check uses the judge's model.
+      CTRL_AI_SHADOW_MODEL: ${CTRL_AI_SHADOW_MODEL:-}
+      # OpenTelemetry: LiteLLM's otel callback exports to the collector below.
+      OTEL_EXPORTER: otlp_http
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: ctrl-ai-gateway
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
+      # The ctrl_ai package is imported from /app (the pinned image ships without pip).
+      PYTHONPATH: /app
+      # Use the image's bundled price table instead of fetching one at startup.
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    volumes:
+      - ./src/ctrl_ai:/app/ctrl_ai:ro
+      - ./deploy/litellm:/app/gateway:ro
+      - ./config:/app/config:ro
+      - ./state:/app/state:ro
+      - ./logs:/app/logs
+    ports:
+      - "127.0.0.1:${CTRL_AI_GATEWAY_PORT:-4000}:4000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      # Python because the image has no curl or wget. Never GET /health here:
+      # it makes a real model call for every configured model.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  # Admin panel, dashboard and staging chat on http://localhost:4100. Runs in the LiteLLM image,
+  # which already has Python, FastAPI, uvicorn and httpx; its own entrypoint is overridden so
+  # it does not start a second LiteLLM.
+  ui:
+    image: ghcr.io/berriai/litellm:v1.103.2
+    entrypoint: ["python", "-m", "uvicorn", "--factory", "ctrl_ai.admin.app:create_app", "--host", "0.0.0.0", "--port", "4100"]
+    environment:
+      PYTHONPATH: /app
+      CTRL_AI_GATEWAY_URL: http://gateway:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
+      CTRL_AI_AUDIT_LOG: /app/logs/audit.jsonl
+      CTRL_AI_POLICY_FILE: ${CTRL_AI_POLICY_FILE:-/app/config/policy.yaml}
+      CTRL_AI_UI_MODELS: ${CTRL_AI_UI_MODELS:-chat-mistral,chat-groq}
+      # Only the names of the provider models whose key is set, never the keys themselves,
+      # so the page can hide a model that would fail with an authentication error.
+      CTRL_AI_UI_KEYED_MODELS: "${MISTRAL_API_KEY:+chat-mistral},${GROQ_API_KEY:+chat-groq}"
+      # The files the admin panel edits.
+      CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
+      CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}
+      CTRL_AI_SIGNATURES_FILE: /app/config/signatures.yaml
+      CTRL_AI_MCP_FILE: ${CTRL_AI_MCP_FILE:-/app/config/mcp.yaml}
+      CTRL_AI_KEYS_FILE: /app/state/keys.json
+      CTRL_AI_BREAKGLASS_FILE: /app/state/break_glass.json
+      CTRL_AI_HISTORY_DIR: /app/state/history
+      CTRL_AI_ADMIN_AUDIT_LOG: /app/logs/admin.jsonl
+      CTRL_AI_SCHEMA_DIR: /app/config/schema
+      CTRL_AI_ADMIN_USER: ${CTRL_AI_ADMIN_USER:-admin}
+      CTRL_AI_ADMIN_PASSWORD: ${CTRL_AI_ADMIN_PASSWORD:-}
+      CTRL_AI_SESSION_SECRET: ${CTRL_AI_SESSION_SECRET:-}
+      CTRL_AI_BREAKGLASS_SECRET: ${CTRL_AI_BREAKGLASS_SECRET:-}
+      CTRL_AI_PROMETHEUS_URL: ${CTRL_AI_PROMETHEUS_URL:-http://prometheus:9090}
+      CTRL_AI_XAI_REPORTS: /app/reports/xai
+      CTRL_AI_XAI_DATASET: /app/datasets/xai
+    # Runs as the host user, so files the admin panel writes in config/ and state/ stay
+    # editable on the host. Set CTRL_AI_UID/CTRL_AI_GID in .env if your user id is not 1000.
+    user: "${CTRL_AI_UID:-1000}:${CTRL_AI_GID:-1000}"
+    volumes:
+      - ./src/ctrl_ai:/app/ctrl_ai:ro
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./state:/app/state
+      # Jev trust page: the published audit report and the synthetic casebook (read-only).
+      - ./reports/xai:/app/reports/xai:ro
+      - ./datasets:/app/datasets:ro
+    ports:
+      - "${CTRL_AI_UI_BIND:-127.0.0.1}:${CTRL_AI_UI_PORT:-4100}:4100"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4100/api/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Shared counters for loop caps and budgets, and the masking map, so several
+  # gateway replicas agree. No published port: internal network only. Nothing is persisted;
+  # the gateway works without it (every call has a 200 ms timeout and fails open).
+  redis:
+    # redis:latest as present on the build machine, pinned by digest.
+    image: redis@sha256:43355efd22490e31ca14b9d569367d05121e2be61fd8e47937563ae2a80952ae
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # OpenTelemetry pipeline: the gateway sends OTLP to otel-collector, which redacts content,
+  # produces span metrics and exposes them to prometheus. Both are on the internal network only
+  # (no published ports). The admin panel reads Prometheus at CTRL_AI_PROMETHEUS_URL.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.137.0
+    command: ["--config=/etc/otelcol/collector.yaml"]
+    volumes:
+      - ./deploy/otel/collector.yaml:/etc/otelcol/collector.yaml:ro
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./deploy/otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on: [otel-collector]
+    restart: unless-stopped
+
+  # Fake Jira/wiki MCP server, for the MCP gateway tests. Internal only.
+  # MCP_STUB_RUGPULL=1 changes a tool description (pinning test).
+  mcp-stub:
+    image: ghcr.io/berriai/litellm:v1.103.2
+    entrypoint: ["python", "/stubs/mcp_stub.py"]
+    environment:
+      PORT: "9403"
+      MCP_STUB_RUGPULL: ${MCP_STUB_RUGPULL:-0}
+    volumes:
+      - ./tests/stubs:/stubs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 9403), 2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Second example MCP server (docs search), same stub with MCP_STUB_PROFILE=docs.
+  mcp-stub-docs:
+    image: ghcr.io/berriai/litellm:v1.103.2
+    entrypoint: ["python", "/stubs/mcp_stub.py"]
+    environment:
+      PORT: "9404"
+      MCP_STUB_PROFILE: docs
+    volumes:
+      - ./tests/stubs:/stubs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 9404), 2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Degraded lane: a minimal second gateway, started only on demand:
+  #   make lane-up / make lane-down   (compose profile "lane", host port CTRL_AI_LANE_PORT, default 4050)
+  gateway-lane:
+    profiles: ["lane"]
+    image: ghcr.io/berriai/litellm:v1.103.2
+    command: ["--config", "/app/gateway/config.lane.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-https://api.anthropic.com}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      CTRL_AI_GATEWAY_CONFIG: /app/gateway/config.lane.yaml
+      CTRL_AI_POLICY_FILE: /app/lane/policy.lane.yaml
+      CTRL_AI_AUDIT_LOG: ${CTRL_AI_AUDIT_LOG:-/app/logs/audit.jsonl}
+      CTRL_AI_MODELS_FILE: ${CTRL_AI_MODELS_FILE:-/app/config/models.yaml}
+      CTRL_AI_TEAMS_FILE: ${CTRL_AI_TEAMS_FILE:-/app/config/teams.yaml}
+      CTRL_AI_SIGNATURES_FILE: ${CTRL_AI_SIGNATURES_FILE:-/app/config/signatures.yaml}
+      CTRL_AI_KEYS_FILE: ${CTRL_AI_KEYS_FILE:-/app/state/keys.json}
+      CTRL_AI_BREAKGLASS_FILE: ${CTRL_AI_BREAKGLASS_FILE:-/app/state/break_glass.json}
+      CTRL_AI_MASKING_SECRET: ${CTRL_AI_MASKING_SECRET:-}
+      CTRL_AI_LANE: "1"
+      PYTHONPATH: /app
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    volumes:
+      - ./src/ctrl_ai:/app/ctrl_ai:ro
+      - ./deploy/litellm:/app/gateway:ro
+      - ./config:/app/config:ro
+      - ./state:/app/state:ro
+      - ./deploy/lane:/app/lane:ro
+      - ./logs:/app/logs
+    ports:
+      - "127.0.0.1:${CTRL_AI_LANE_PORT:-4050}:4000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 40

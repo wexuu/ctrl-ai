@@ -1,0 +1,89 @@
+# OpenTelemetry Collector for ctrl-ai.
+# Receives OTLP from the gateway, removes anything that could carry message content, hashes user
+# identifiers, turns spans into RED metrics (spanmetrics) for Prometheus, and prints a sample of
+# spans with the debug exporter for local checks. In production the `debug` exporter is replaced
+# by the organisation's own (Splunk HEC, Datadog, Elastic, Dynatrace, OTLP to Grafana Tempo...).
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # 1. Delete well-known content attributes (GenAI semantic conventions, OpenInference, LiteLLM).
+  attributes/redact:
+    actions:
+      - {key: gen_ai.prompt, action: delete}
+      - {key: gen_ai.completion, action: delete}
+      - {key: gen_ai.input.messages, action: delete}
+      - {key: gen_ai.output.messages, action: delete}
+      - {key: gen_ai.system_instructions, action: delete}
+      - {key: input.value, action: delete}
+      - {key: output.value, action: delete}
+      - {key: llm.input_messages, action: delete}
+      - {key: llm.output_messages, action: delete}
+      - {key: user, action: hash}
+      - {key: enduser.id, action: hash}
+      - {key: gen_ai.request.user, action: hash}
+      - {key: metadata.user_api_key_user_id, action: hash}
+      - {key: metadata.user_api_key_hash, action: delete}
+      - {key: metadata.user_api_key, action: delete}
+      # Client headers can carry gateway keys or break-glass tokens; the client IP is personal data.
+      - {key: metadata.requester_custom_headers, action: delete}
+      - {key: metadata.requester_metadata, action: delete}
+      - {key: metadata.requester_ip_address, action: hash}
+  # 2. Pattern-based deletion: indexed variants (gen_ai.prompt.0.content, llm.input_messages.1...)
+  #    and anything whose key mentions content, messages, prompt or completion text.
+  transform/redact:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_matching_keys(span.attributes, "^gen_ai\\.(prompt|completion|input|output).*")
+          - delete_matching_keys(span.attributes, "^llm\\.(input|output)_messages.*")
+          - delete_matching_keys(span.attributes, ".*(content|messages|prompt|completion_text|response_text|raw_request|raw_response).*")
+          - delete_matching_keys(span.attributes, "(?i).*(api_key|authorization|token|secret).*")
+      - context: spanevent
+        statements:
+          - delete_matching_keys(span.attributes, ".*")
+  batch: {}
+
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 4s, 8s, 16s, 32s]
+    dimensions:
+      - name: gen_ai.request.model
+      - name: gen_ai.system
+      - name: ct.decision
+      - name: ct.rule
+      - name: ct.team
+      - name: ct.profile
+    metrics_flush_interval: 5s
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: false
+  debug:
+    verbosity: detailed
+    sampling_initial: 20
+    sampling_thereafter: 50
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/redact, transform/redact, batch]
+      exporters: [spanmetrics, debug]
+    metrics:
+      receivers: [otlp, spanmetrics]
+      processors: [batch]
+      exporters: [prometheus]

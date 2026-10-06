@@ -1,0 +1,32 @@
+# ctrl-ai gateway: infra-only configuration (NO guardrail, NO logger).
+# A diagnostic: the same as config.yaml minus the `guardrails` and
+# `litellm_settings` sections, so it loads nothing from the ctrl_ai package. Use it to
+# tell a gateway problem from a guardrail problem:
+#   CTRL_AI_GATEWAY_CONFIG=/app/gateway/config.infra-only.yaml make up
+# Nothing is checked or audited in this mode. Never use it for real traffic.
+model_list:
+  - model_name: claude-opus-5-5
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE   # bare origin; LiteLLM appends /v1/messages
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+  # Any other claude-* name a client asks for. Claude Code requests whatever model
+  # its user has selected; without this entry those requests fail.
+  - model_name: "claude-*"
+    litellm_params:
+      model: "anthropic/claude-*"
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Also forwards the client's x-* headers (e.g. Claude Code's session id).
+  # Token forwarding itself does not depend on it.
+  forward_client_headers_to_llm_api: true

@@ -1,0 +1,80 @@
+# Departments and teams of the organisation. Schema: config/schema/teams.schema.json.
+# This is an example organisation; replace it with your own (docs/CONFIGURATION.md).
+# Gateway keys are issued per team from the admin panel and stored as hashes in state/keys.json.
+# Edited from the admin panel (Teams page); the gateway picks changes up without a restart.
+
+departments:
+- id: hr
+  name: HR
+- id: devops
+  name: DevOps
+- id: finance
+  name: Finance
+- id: management
+  name: Management
+- id: engineering
+  name: Engineering
+teams:
+- id: people-ops
+  name: People Operations
+  department: hr
+  profile: strict
+  data_class: confidential
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 150
+    on_exceeded: block
+  mode: enforce
+- id: platform-ops
+  name: Platform Operations
+  department: devops
+  profile: balanced
+  data_class: internal
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 300
+    daily_tokens: 3000000
+    on_exceeded: downgrade
+    downgrade_to: chat-groq
+  mode: enforce
+- id: finance-ops
+  name: Finance Operations
+  department: finance
+  profile: strict
+  data_class: confidential
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 200
+    on_exceeded: block
+  mode: enforce
+- id: leadership
+  name: Leadership Team
+  department: management
+  profile: strict
+  data_class: confidential
+  default_model: claude-opus-5-5
+  budget:
+    monthly_usd: 300
+    on_exceeded: alert_only
+  mode: enforce
+- id: product-dev
+  name: Product Engineering
+  department: engineering
+  profile: balanced
+  data_class: internal
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 500
+    daily_tokens: 5000000
+    on_exceeded: downgrade
+    downgrade_to: chat-groq
+  mode: enforce
+- id: ai-platform
+  name: AI Platform Team
+  department: engineering
+  profile: balanced
+  data_class: internal
+  budget:
+    monthly_usd: 100
+    on_exceeded: alert_only
+  mode: enforce

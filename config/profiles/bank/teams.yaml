@@ -1,0 +1,69 @@
+# Departments and teams of the bank demo profile (a fictional bank). Schema: config/schema/teams.schema.json.
+# Gateway keys are issued per team from the admin panel and stored as hashes in state/keys.json.
+# Edited from the admin panel (Teams page); the gateway picks changes up without a restart.
+
+departments:
+- id: payments
+  name: Payments
+- id: retail
+  name: Retail Banking
+- id: markets
+  name: Markets & Trading
+- id: risk
+  name: Risk & Compliance
+- id: platform
+  name: AI Platform
+teams:
+- id: payments-dev
+  name: Payments Engineering
+  department: payments
+  profile: strict
+  data_class: confidential
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 500
+    daily_tokens: 5000000
+    on_exceeded: downgrade
+    downgrade_to: chat-groq
+  mode: enforce
+- id: retail-dev
+  name: Retail App Engineering
+  department: retail
+  profile: strict
+  data_class: internal
+  default_model: chat-groq
+  budget:
+    monthly_usd: 200
+    daily_tokens: 2000000
+    on_exceeded: downgrade
+    downgrade_to: chat-groq
+  mode: enforce
+- id: markets-quant
+  name: Quant Research
+  department: markets
+  profile: strict
+  data_class: confidential
+  default_model: claude-opus-5-5
+  budget:
+    monthly_usd: 1000
+    on_exceeded: alert_only
+  mode: enforce
+- id: risk-analytics
+  name: Risk Analytics
+  department: risk
+  profile: strict
+  data_class: confidential
+  default_model: claude-sonnet-5-5
+  budget:
+    monthly_usd: 300
+    on_exceeded: block
+  mode: enforce
+- id: ai-platform
+  name: AI Platform Team
+  department: platform
+  profile: strict
+  data_class: internal
+  budget:
+    monthly_usd: 100
+    on_exceeded: alert_only
+  mode: enforce

@@ -1,0 +1,21 @@
+# Local only: agent notes and instructions
+.agent/
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Secrets, runtime state and build output
+.env
+.venv/
+logs/
+tests/e2e/runtime/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+node_modules/
+state/
+deploy/k8s/overlays/local/secrets.env
+reports/xai/

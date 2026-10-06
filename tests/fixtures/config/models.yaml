@@ -1,0 +1,83 @@
+# Frozen copy for the test suites; the deployable default is config/models.yaml.
+# ctrl-ai model catalogue: the bank decides which models may be used, by whom, for which
+# data, at what price. Schema: config/schema/models.schema.json. Edited from the admin panel
+# (Models page) or by hand; the gateway picks changes up without a restart.
+models:
+  - id: claude-opus-5-5
+    display_name: Claude Opus 5.5
+    provider: anthropic
+    status: approved
+    data_class_max: confidential
+    region: global
+    teams: ["*"]
+    price: {input_per_mtok: 4.00, output_per_mtok: 20.00}
+    equivalent: claude-sonnet-5-5
+    fallbacks: [claude-sonnet-5-5]
+    owner: ai-platform
+    reviewed: 2026-10-04
+  - id: claude-sonnet-5-5
+    display_name: Claude Sonnet 5.5
+    provider: anthropic
+    status: approved
+    data_class_max: confidential
+    region: global
+    teams: ["*"]
+    price: {input_per_mtok: 2.00, output_per_mtok: 10.00}
+    equivalent: claude-haiku-4-5
+    fallbacks: [claude-haiku-4-5]
+    owner: ai-platform
+    reviewed: 2026-10-04
+  - id: claude-haiku-4-5
+    display_name: Claude Haiku 4.5
+    provider: anthropic
+    status: approved
+    data_class_max: internal
+    region: global
+    teams: ["*"]
+    price: {input_per_mtok: 1.00, output_per_mtok: 5.00}
+    owner: ai-platform
+    reviewed: 2026-10-04
+  - id: claude-*
+    display_name: Other Claude models (Claude Code's own choice)
+    provider: anthropic
+    status: trial
+    data_class_max: internal
+    region: global
+    teams: ["*"]
+    equivalent: claude-sonnet-5-5
+    owner: ai-platform
+    reviewed: 2026-10-04
+    notes: No price on purpose until each model is reviewed; requests are counted as unknown price.
+  - id: chat-groq
+    display_name: GPT-OSS 20B on Groq (free tier)
+    provider: groq
+    status: approved
+    data_class_max: internal
+    region: us
+    teams: ["*"]
+    price: {input_per_mtok: 0.075, output_per_mtok: 0.30, shadow: true}
+    equivalent: chat-mistral
+    fallbacks: [chat-mistral]
+    owner: ai-platform
+    reviewed: 2026-10-04
+  - id: chat-mistral
+    display_name: Mistral Small 4 (free tier)
+    provider: mistral
+    status: trial
+    data_class_max: internal
+    region: eu
+    teams: [retail-dev, payments-dev]
+    price: {input_per_mtok: 0.10, output_per_mtok: 0.30, shadow: true}
+    equivalent: chat-groq
+    owner: ai-platform
+    reviewed: 2026-10-04
+unmanaged_channels:
+  - name: Cursor built-in models
+    control: vendor_enterprise_policy
+    note: Cursor routes through its own servers; only its custom-endpoint chat can use the gateway.
+  - name: GitHub Copilot native models
+    control: vendor_enterprise_policy
+  - name: Windsurf native models
+    control: blocked_by_network
+  - name: Provider-side tools (web search, code execution on the provider)
+    control: accepted_risk

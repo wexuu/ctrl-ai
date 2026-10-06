@@ -1,0 +1,109 @@
+# ctrl-ai gateway: full configuration (guardrail and logger enabled).
+# This is the default (CTRL_AI_GATEWAY_CONFIG=/app/gateway/config.yaml). It needs the
+# ctrl_ai package on /app; without it the container
+# exits with code 3. To run the gateway alone, use config.infra-only.yaml.
+#
+# No api_key lines on purpose: a model entry without one falls back to the
+# ANTHROPIC_API_KEY environment variable when it is set (provider-key mode) and
+# sends an empty key when it is not. LiteLLM forwards a client's
+# `Authorization: Bearer sk-ant-oat...` login token by itself (subscription
+# pass-through), so this one file serves both modes.
+model_list:
+  - model_name: claude-opus-5-5
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE   # bare origin; LiteLLM appends /v1/messages
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+  # Any other claude-* name a client asks for. Claude Code requests whatever model
+  # its user has selected; without this entry those requests fail.
+  - model_name: "claude-*"
+    litellm_params:
+      model: "anthropic/claude-*"
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+  # Free-tier providers, used by the staging chat. Not Claude: Claude Code keeps
+  # using the subscription through the claude-* entries above.
+  # Model ids as listed in the providers' documentation.
+  - model_name: chat-mistral
+    litellm_params:
+      model: mistral/mistral-small-2603
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: chat-groq
+    litellm_params:
+      model: groq/openai/gpt-oss-20b
+      api_key: os.environ/GROQ_API_KEY
+
+guardrails:
+  - guardrail_name: ctrl-ai
+    litellm_params:
+      guardrail: ctrl_ai.adapters.litellm.guardrail.CtrlAiGuardrail
+      mode: pre_call
+      default_on: true
+  # Jev and the AI judge run alongside the model call (during_call), so the user
+  # waits max(model, semantic check) instead of the sum. Writes the decision row.
+  - guardrail_name: ctrl-ai-semantic
+    litellm_params:
+      guardrail: ctrl_ai.adapters.litellm.semantic.CtrlAiSemanticGuardrail
+      mode: during_call
+      default_on: true
+  # puts the real values back where the request was masked (answers, tool-call
+  # arguments; streamed chat completions too).
+  - guardrail_name: ctrl-ai-restore
+    litellm_params:
+      guardrail: ctrl_ai.adapters.litellm.restore.CtrlAiRestoreGuardrail
+      mode: post_call
+      default_on: true
+  # MCP tool gateway checks (approved servers, pinned descriptions, content
+  # checks, `tool` audit rows). Runs only on MCP tool calls, never on model requests.
+  - guardrail_name: ctrl-ai-mcp
+    litellm_params:
+      guardrail: ctrl_ai.adapters.litellm.mcp.CtrlAiMCPGuardrail
+      mode: [pre_mcp_call, post_mcp_call]
+      default_on: true
+
+# model fallback chains, matching the `fallbacks` fields of config/models.yaml.
+# LiteLLM reads these at start-up only: after changing a chain, restart the gateway (it logs a
+# warning at start-up when the two disagree). num_retries 1 so a provider outage falls back in
+# about a second instead of five.
+router_settings:
+  num_retries: 1
+  fallbacks:
+    - claude-opus-5-5: [claude-sonnet-5-5]
+    - claude-sonnet-5-5: [claude-haiku-4-5]
+    - chat-groq: [chat-mistral]
+
+
+# MCP servers behind the gateway. The approved list, team access and pinned
+# tool descriptions are in config/mcp.yaml (CTRL_AI_MCP_FILE). mcp-stub is a fake Jira/wiki server
+# (stubs/mcp_stub.py, service in deploy/docker/compose.yml) for tests.
+mcp_servers:
+  tickets:
+    url: http://mcp-stub:9403/mcp
+    transport: http
+  confluence:
+    url: http://mcp-stub-docs:9404/mcp
+    transport: http
+
+litellm_settings:
+  callbacks: ["ctrl_ai.adapters.litellm.logger.ctrl_ai_logger", "otel"]
+  # OpenTelemetry: "otel" appended to the callbacks above; spans go to
+  # OTEL_EXPORTER_OTLP_ENDPOINT (the collector in deploy/docker/compose.yml). turn_off_message_logging
+  # keeps prompts and responses out of spans and callback logs.
+  turn_off_message_logging: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # our key check. The master key still works; team keys are verified against
+  # state/keys.json (hashes only). Unknown, revoked or expired keys get 401.
+  custom_auth: ctrl_ai.adapters.litellm.auth.user_api_key_auth
+  # Also forwards the client's x-* headers (e.g. Claude Code's session id).
+  # Token forwarding itself does not depend on it.
+  forward_client_headers_to_llm_api: true

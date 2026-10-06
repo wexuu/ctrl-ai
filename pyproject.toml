@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctrl-ai"
+version = "0.1.0"
+description = "A security gateway for AI agents: policy, masking, governance, limits and audit for model and MCP tool traffic."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pyyaml>=6",
+    "jsonschema>=4",
+    "cryptography>=42",
+    "redis>=5",
+]
+
+[project.optional-dependencies]
+# The admin panel and dashboard (src/ctrl_ai/admin).
+admin = [
+    "fastapi>=0.110",
+    "uvicorn>=0.30",
+]
+# Tests, the keyless stub servers, linting and type checking.
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "mcp>=1.0",
+    "ruff>=0.16",
+    "pyright>=1.1",
+    "pre-commit>=4",
+]
+
+[project.urls]
+Repository = "https://github.com/wexuu/ctrl-ai"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"ctrl_ai.admin" = ["static/*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["tests/e2e/runtime"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",    # the formatter wraps code; comments and strings may run longer
+    "RUF001",  # tests and detectors use confusable and zero-width characters on purpose
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI dependencies and query defaults are function calls by design.
+"src/ctrl_ai/admin/routes_*.py" = ["B008"]
+# Fixtures are imported so pytest sees them, then named again as test parameters.
+"tests/**" = ["B008", "F811"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+venvPath = "."
+venv = ".venv"
+# LiteLLM runs only inside the pinned image; the host never installs it.
+reportMissingImports = "warning"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-m 'not live'"
+markers = [
+    "live: uses real credentials from .env and a gateway started with `make up`; excluded by default",
+]

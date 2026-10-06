@@ -1,0 +1,13 @@
+# ctrl-ai admin panel (admin pages, dashboard, staging chat). Same pinned base image,
+# which already has FastAPI, uvicorn, httpx, PyYAML and jsonschema.
+# Build from the repository root:  docker build -t ctrl-ai-ui:dev -f deploy/docker/Dockerfile.admin .
+FROM ghcr.io/berriai/litellm:v1.103.2@sha256:f63fb81b831b170ec16851e23c36ac5bf52ef106b271406429524a2ed730bbfd
+
+COPY src/ctrl_ai/ /app/ctrl_ai/
+COPY config/schema/ /app/config/schema/
+ENV PYTHONPATH=/app CTRL_AI_SCHEMA_DIR=/app/config/schema CTRL_AI_GATEWAY_URL=http://gateway:4000
+USER 10001:10001
+EXPOSE 4100
+HEALTHCHECK --interval=10s --timeout=3s --retries=6 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4100/api/health', timeout=2)"]
+ENTRYPOINT ["python", "-m", "uvicorn", "--factory", "ctrl_ai.admin.app:create_app", "--host", "0.0.0.0", "--port", "4100"]

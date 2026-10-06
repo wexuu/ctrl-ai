@@ -1,0 +1,109 @@
+# ctrl-ai policy for the bank demo profile (a fictional Polish bank; docs/CONFIGURATION.md).
+# Schema: config/schema/policy.schema.json.
+#
+# The gateway re-reads this file whenever it changes: save it and the next
+# request uses it, no restart. If the file is invalid it is ignored and the
+# last valid version stays active. Saved from the admin panel (Policy page),
+# which validates it first and keeps every previous version in state/history/.
+#
+# mode      enforce: a request that matches a blocking rule is refused (HTTP 400).
+#           monitor: nothing is refused; the audit log records would_block: true.
+# profiles  per-team behaviour (observe, balanced, strict or custom): mode,
+#           what a high semantic score does, what happens when Jev is down.
+# rule_packs  built-in detectors: pii (e-mail, phone, cards, IBAN), pl (PESEL,
+#           NIP, NRB account), secrets (keys and tokens), signatures (known
+#           exploit feed).
+# rules     custom rules, tried top to bottom; an entry with a pack rule's id
+#           overrides that pack rule (action, enabled).
+#             id     a unique name; it appears in the refusal and the audit log
+#             type   contains (exact text) or regex (Python regular expression)
+#             value  what to look for
+# jev       the semantic check: thresholds for review and block.
+# judge     the second model (gpt-oss-safeguard-20b): confirms Jev's rejections, decides alone when
+#           Jev is down or off; block_message is the refusal the agent sees ({score} {category}
+#           {reason} {model}); shadow re-checks a share of what Jev accepted (misses, drift).
+
+version: 2
+mode: enforce
+scan: last_user_message
+default_profile: strict
+profiles:
+  observe:
+    mode: monitor
+    semantic_action: observe
+    on_semantic_unavailable: allow
+    description: Observe. Record everything, refuse nothing ("would have blocked" is counted). For pilots and the
+      AI platform team, who test new agents and models.
+  balanced:
+    mode: enforce
+    semantic_action: flag
+    on_semantic_unavailable: allow
+    description: Flag with the judge. Secrets and exploits are blocked; a likely attack (Jev, confirmed by the judge
+      when Jev is unsure) is flagged for security review, not refused; if both are down, work continues. For product
+      teams such as retail and quant research.
+  strict:
+    mode: enforce
+    semantic_action: block
+    on_semantic_unavailable: block
+    description: Block and fail closed. A likely attack is refused; if Jev and the judge are both unavailable, requests
+      are refused too (also during a semantic outage in degrade mode). For teams handling payments and customer
+      data.
+rule_packs: [pii, pl, secrets, signatures]
+rules:
+- id: test-marker
+  type: contains
+  value: CTRL-AI-BLOCK-TEST
+- id: aws-access-key
+  type: regex
+  value: AKIA[0-9A-Z]{16}
+- id: private-key
+  type: regex
+  value: '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+jev:
+  enabled: true
+  review_threshold: 0.35
+  block_threshold: 0.7
+  accept_below: 0.35
+judge:
+  enabled: true
+  when: [jev_unavailable, jev_uncertain]
+  reject_from: 0.5
+  shadow:
+    rate: 0.1
+    samples: 5
+    alert_below: 0.9
+    min_checks: 10
+  block_message: >-
+    Blocked by ctrl-ai security review. The AI judge rated this request {score} ({category}): {reason}.
+    If this is legitimate work, ask your security on-call for a break-glass override.
+normalisation:
+  enabled: true
+  hidden_char_threshold: 5
+loops:
+  enabled: true
+  max_requests_per_10_min: 300
+  max_tokens_per_session: 2000000
+  max_calls_per_user_turn: 80
+  max_identical_tool_calls: 5
+  request_timeout_s: 120
+  max_session_minutes: 240
+masking:
+  enabled: true
+  entities: [iban, pesel, nip, card, email, phone]
+  routes:
+    external: mask
+    claude_subscription: semantic_copy_only
+  on_error: fail_closed
+break_glass:
+  enabled: true
+  max_minutes: 240
+  require_ticket: false
+  never_relax: [secret-aws-key, secret-private-key, secret-github-token, model-banned]
+semantic_outage:
+  mode: degrade
+  strict_profiles_fail_closed: true
+  circuit:
+    failures_to_open: 5
+    window_s: 60
+    cooldown_s: 30
+  max_manual_minutes: 120

@@ -1,0 +1,23 @@
+{
+ "run_id": "20261004T042212Z",
+ "status": "complete",
+ "stopped": null,
+ "attempts": 10,
+ "max_attempts": 200,
+ "calls": {
+  "jev": 10
+ },
+ "cache_hits": 107,
+ "wall_s": 3.1,
+ "concurrency": 1,
+ "retries": 0,
+ "models": {
+  "jev": "jev-1.13.0",
+  "safeguard": "openai/gpt-oss-safeguard-20b",
+  "prompt_guard": "meta-llama/llama-prompt-guard-2-86m"
+ },
+ "protocol": "xai-review-1",
+ "jev_cost_usd": 0.0007765,
+ "reviewer_cost": "Groq free tier; token counts in predictions",
+ "note": "Explanation re-run. Scores reused from the cache were produced by run 20261004T041859Z: 107 calls (jev 39 incl. 15 ablation, safeguard 46, prompt_guard 22), 145 s, Jev cost $0.00103. This run added 10 Jev ablation calls."
+}

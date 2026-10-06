@@ -1,0 +1,11 @@
+# Runtime state written by the admin panel and read by every gateway replica: gateway keys
+# (hashes only) and the break-glass register. ReadWriteMany (EFS on AWS, NFS or similar on-prem).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ctrl-ai-state
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 1Gi

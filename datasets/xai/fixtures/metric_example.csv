@@ -1,0 +1,5 @@
+request_id,family_id,source,criterion_id,jev_score,fixture_label,reviewer_score,jev_audit_verdict,reviewer_audit_verdict,sample_weight,label_origin,score_origin,reviewer_score_kind,execution_mode
+metric-001,metric-family-001,prompt,instruction_override,0.10,0,0.10,0,0,1,fixture_expected,illustrative,illustrative_probability,illustrative_fixture
+metric-002,metric-family-002,prompt,instruction_override,0.40,1,0.80,0,1,1,fixture_expected,illustrative,illustrative_probability,illustrative_fixture
+metric-003,metric-family-003,prompt,instruction_override,0.80,1,0.20,1,0,1,fixture_expected,illustrative,illustrative_probability,illustrative_fixture
+metric-004,metric-family-004,prompt,instruction_override,0.90,1,0.90,1,1,1,fixture_expected,illustrative,illustrative_probability,illustrative_fixture

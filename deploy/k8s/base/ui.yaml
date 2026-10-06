@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+  labels: {app.kubernetes.io/name: ui}
+spec:
+  replicas: 1   # one writer of the config history and keys file
+  selector:
+    matchLabels: {app.kubernetes.io/name: ui}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ui}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ui
+          image: ctrl-ai-ui:dev
+          ports:
+            - {name: http, containerPort: 4100}
+          env:
+            - {name: CTRL_AI_GATEWAY_URL, value: "http://gateway:4000"}
+            - name: LITELLM_MASTER_KEY
+              valueFrom: {secretKeyRef: {name: ctrl-ai-secrets, key: LITELLM_MASTER_KEY}}
+            - {name: CTRL_AI_POLICY_FILE, value: /app/config/policy.yaml}
+            - {name: CTRL_AI_MODELS_FILE, value: /app/config/models.yaml}
+            - {name: CTRL_AI_TEAMS_FILE, value: /app/config/teams.yaml}
+            - {name: CTRL_AI_SIGNATURES_FILE, value: /app/config/signatures.yaml}
+            - {name: CTRL_AI_MCP_FILE, value: /app/config/mcp.yaml}
+            - {name: CTRL_AI_KEYS_FILE, value: /app/state/keys.json}
+            - {name: CTRL_AI_BREAKGLASS_FILE, value: /app/state/break_glass.json}
+            - {name: CTRL_AI_HISTORY_DIR, value: /app/state/history}
+            - {name: CTRL_AI_ADMIN_AUDIT_LOG, value: /app/state/admin.jsonl}
+            - {name: CTRL_AI_AUDIT_LOG, value: /app/state/audit.jsonl}
+            - {name: CTRL_AI_PROMETHEUS_URL, value: "http://prometheus:9090"}
+            - {name: CTRL_AI_UI_MODELS, value: "chat-groq"}
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            # In the cluster the configuration is GitOps-managed (ConfigMap, read-only): the panel
+            # shows it and validates changes; saving goes through a pull request (see docs/DEPLOY.md).
+            - {name: config, mountPath: /app/config, readOnly: true}
+            - {name: state, mountPath: /app/state}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: ctrl-ai-config}
+        - name: state
+          persistentVolumeClaim: {claimName: ctrl-ai-state}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+  labels: {app.kubernetes.io/name: ui}
+spec:
+  selector: {app.kubernetes.io/name: ui}
+  ports:
+    - {name: http, port: 4100, targetPort: http}

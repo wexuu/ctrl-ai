@@ -1,0 +1,66 @@
+# Test overlay, used together with compose.yml (see `make test-up`):
+#   docker compose --project-directory . -f deploy/docker/compose.yml -f deploy/docker/compose.test.yml \
+#     -p ctrl-ai-test --env-file tests/e2e/test.env up -d --wait
+# Adds the two stub servers and points the gateway's policy and audit files at tests/e2e/runtime/.
+# A separate project name, so `make test-down` never touches a normally started gateway.
+name: ctrl-ai-test
+
+services:
+  stub-anthropic:
+    image: python:3.13-slim
+    command: ["python", "-u", "/stubs/anthropic_stub.py"]
+    environment:
+      PORT: "9001"
+    volumes:
+      - ./tests/stubs:/stubs:ro
+    ports:
+      - "127.0.0.1:${CTRL_AI_STUB_ANTHROPIC_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9001/_stub/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  stub-jev:
+    image: python:3.13-slim
+    command: ["python", "-u", "/stubs/jev_stub.py"]
+    environment:
+      PORT: "9002"
+    volumes:
+      - ./tests/stubs:/stubs:ro
+    ports:
+      - "127.0.0.1:${CTRL_AI_STUB_JEV_PORT:-9002}:9002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9002/_stub/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  gateway:
+    volumes:
+      - ./tests/e2e/runtime:/app/runtime
+    depends_on:
+      stub-anthropic:
+        condition: service_healthy
+      stub-jev:
+        condition: service_healthy
+
+  # The admin panel against the test stack: the chat goes to the stub through the gateway
+  # (CTRL_AI_UI_MODELS=claude-haiku-4-5 from test.env), and it reads the test runtime's files.
+  ui:
+    environment:
+      CTRL_AI_AUDIT_LOG: /app/runtime/audit.jsonl
+      CTRL_AI_POLICY_FILE: /app/runtime/policy.yaml
+      CTRL_AI_KEYS_FILE: /app/runtime/state/keys.json
+      CTRL_AI_BREAKGLASS_FILE: /app/runtime/state/break_glass.json
+      CTRL_AI_HISTORY_DIR: /app/runtime/state/history
+      CTRL_AI_ADMIN_AUDIT_LOG: /app/runtime/admin.jsonl
+      CTRL_AI_MODELS_FILE: /app/runtime/models.yaml
+      CTRL_AI_TEAMS_FILE: /app/runtime/teams.yaml
+      CTRL_AI_SIGNATURES_FILE: /app/runtime/signatures.yaml
+      CTRL_AI_MCP_FILE: /app/runtime/mcp.yaml
+      CTRL_AI_ADMIN_USER: admin
+      CTRL_AI_ADMIN_PASSWORD: ctrl-ai-test-admin
+      CTRL_AI_SESSION_SECRET: ctrl-ai-test-session-secret
+    volumes:
+      - ./tests/e2e/runtime:/app/runtime

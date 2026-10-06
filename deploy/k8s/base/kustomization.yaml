@@ -1,0 +1,34 @@
+# ctrl-ai on Kubernetes: base. Render with
+#   kubectl kustomize --load-restrictor LoadRestrictionsNone deploy/k8s/overlays/<local|aws>
+# (the load restrictor is relaxed because the ConfigMaps are generated from the repository's
+# config/ and deploy/litellm/ files, which live outside this folder).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ctrl-ai
+labels:
+  - pairs: {app.kubernetes.io/part-of: ctrl-ai}
+    includeSelectors: false
+resources:
+  - namespace.yaml
+  - gateway.yaml
+  - ui.yaml
+  - otel-collector.yaml
+  - networkpolicy.yaml
+  - state-pvc.yaml
+# A change to any config file produces a new ConfigMap name (content hash), so the Deployments
+# roll out. Inside a running pod the gateway also reloads files live: a ConfigMap volume update is
+# an atomic symlink swap, and the stores' os.stat() follows the symlink, so (mtime, size) changes.
+configMapGenerator:
+  - name: ctrl-ai-config
+    files:
+      - policy.yaml=../../../config/policy.yaml
+      - models.yaml=../../../config/models.yaml
+      - teams.yaml=../../../config/teams.yaml
+      - signatures.yaml=../../../config/signatures.yaml
+      - mcp.yaml=../../../config/mcp.yaml
+  - name: ctrl-ai-gateway-config
+    files:
+      - config.yaml=../../litellm/config.yaml
+  - name: ctrl-ai-otel-config
+    files:
+      - collector.yaml=../../otel/collector.yaml

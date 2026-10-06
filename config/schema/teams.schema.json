@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/teams.schema.json",
+  "title": "ctrl-ai departments and teams (config/teams.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "departments",
+    "teams"
+  ],
+  "properties": {
+    "departments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/slug"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "teams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "department"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/slug"
+          },
+          "name": {
+            "type": "string"
+          },
+          "department": {
+            "$ref": "#/$defs/slug"
+          },
+          "profile": {
+            "type": "string",
+            "description": "A profile name from policy.yaml; empty means default_profile."
+          },
+          "data_class": {
+            "enum": [
+              "public",
+              "internal",
+              "confidential"
+            ],
+            "description": "Highest data class this team handles."
+          },
+          "default_model": {
+            "type": "string"
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "monthly_usd": {
+                "type": "number",
+                "minimum": 0
+              },
+              "daily_tokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "on_exceeded": {
+                "enum": [
+                  "downgrade",
+                  "block",
+                  "alert_only"
+                ]
+              },
+              "downgrade_to": {
+                "type": "string"
+              }
+            }
+          },
+          "mode": {
+            "enum": [
+              "enforce",
+              "monitor"
+            ],
+            "description": "Per-team mode: enforce acts on decisions; monitor only records. Overrides the policy's global mode for this team."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+    }
+  }
+}

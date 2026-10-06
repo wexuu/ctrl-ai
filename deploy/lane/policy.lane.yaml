@@ -1,0 +1,38 @@
+# ctrl-ai policy for the DEGRADED LANE (break-glass). Schema: config/schema/policy.schema.json.
+# Deterministic checks only: Jev and the AI judge are off, so the lane works when they (or the
+# main gateway) are down. Secrets and personal data stay enforced; the lane never relaxes them.
+version: 2
+mode: enforce
+scan: last_user_message
+default_profile: lane
+profiles:
+  lane:
+    mode: enforce
+    semantic_action: observe
+    on_semantic_unavailable: allow
+    description: Degraded lane. Rules and packs enforced, no semantic check, tight limits.
+rule_packs: [pii, secrets, signatures]
+rules:
+  - id: test-marker
+    type: contains
+    value: "CTRL-AI-BLOCK-TEST"
+  - id: aws-access-key
+    type: regex
+    value: "AKIA[0-9A-Z]{16}"
+  - id: private-key
+    type: regex
+    value: "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"
+jev:
+  enabled: false
+judge:
+  enabled: false
+loops:
+  enabled: true
+  max_requests_per_10_min: 60
+  max_calls_per_user_turn: 20
+masking:
+  enabled: true
+  routes: {external: mask, claude_subscription: semantic_copy_only}
+  on_error: fail_closed
+break_glass:
+  enabled: false

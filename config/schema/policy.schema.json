@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/policy.schema.json",
+  "title": "ctrl-ai policy (config/policy.yaml), version 2",
+  "description": "Every version-1 file is still valid: all version-2 fields are optional. The gateway reads it; the admin panel writes it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mode"
+  ],
+  "properties": {
+    "version": {
+      "const": 2
+    },
+    "mode": {
+      "enum": [
+        "enforce",
+        "monitor"
+      ],
+      "description": "Global default; a team's profile can override it."
+    },
+    "scan": {
+      "const": "last_user_message"
+    },
+    "default_profile": {
+      "type": "string",
+      "description": "Profile used for requests whose team names none. Must be a key of profiles."
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "rule_packs": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "pii",
+          "pl",
+          "secrets",
+          "signatures"
+        ]
+      },
+      "uniqueItems": true,
+      "description": "Built-in detector packs switched on. Their rule ids are defined in src/ctrl_ai/detect/packs.py (docs/CONFIGURATION.md lists them)."
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    },
+    "jev": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "review_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "block_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "prompt",
+              "tool_result"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "accept_below": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Single-threshold flow: Jev score below this is accepted; at or above it the AI judge decides. When set, review/block thresholds are not used for Jev."
+        }
+      }
+    },
+    "judge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "when": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "jev_unavailable",
+              "jev_uncertain"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "reject_from": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Judge score at or above this rejects the request (then the team's profile decides flag or block). Default 0.5."
+        },
+        "block_message": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Refusal text the agent receives when the AI judge blocks a request. Placeholders: {score}, {category}, {reason} (the judge's own words, at most 160 characters), {model}. Empty: the standard message."
+        },
+        "shadow": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Shadow check: the second model looks again at a random share of the requests Jev accepted, in the background, to catch Jev's misses and to measure drift.",
+          "properties": {
+            "rate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Share of Jev-accepted requests checked. 0 turns it off."
+            },
+            "samples": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Answers per check at temperature 1; the share of yes answers is the sampled probability."
+            },
+            "alert_below": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Drift alert when daily agreement with Jev falls below this."
+            },
+            "min_checks": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Checks a day needs before its agreement can raise the alert."
+            }
+          }
+        }
+      }
+    },
+    "normalisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "hidden_char_threshold": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "loops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_requests_per_10_min": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_tokens_per_session": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_calls_per_user_turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_identical_tool_calls": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "request_timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Agent timeout: the longest a single model call may run before the gateway cuts it."
+        },
+        "max_session_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "Agent timeout: the longest an agent session may keep running before it is stopped."
+        }
+      }
+    },
+    "masking": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "iban",
+              "pesel",
+              "nip",
+              "card",
+              "email",
+              "phone"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "routes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "external": {
+              "enum": [
+                "mask",
+                "off"
+              ]
+            },
+            "claude_subscription": {
+              "enum": [
+                "semantic_copy_only",
+                "off"
+              ]
+            }
+          }
+        },
+        "on_error": {
+          "enum": [
+            "fail_closed",
+            "fail_open"
+          ]
+        }
+      }
+    },
+    "break_glass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "require_ticket": {
+          "type": "boolean"
+        },
+        "never_relax": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "semantic_outage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What happens when Jev and the judge (both third parties) are unavailable at the same time.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "degrade",
+            "fail_closed"
+          ],
+          "description": "degrade: deterministic controls only, every request flagged; fail_closed: requests needing a semantic check are refused."
+        },
+        "strict_profiles_fail_closed": {
+          "type": "boolean",
+          "description": "In degrade mode, profiles whose on_semantic_unavailable is block still refuse."
+        },
+        "circuit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "failures_to_open": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "window_s": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cooldown_s": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "max_manual_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        }
+      }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "enforce",
+            "monitor"
+          ]
+        },
+        "semantic_action": {
+          "enum": [
+            "observe",
+            "flag",
+            "block"
+          ],
+          "description": "What a Jev or judge score at or above block_threshold does."
+        },
+        "on_semantic_unavailable": {
+          "enum": [
+            "allow",
+            "flag",
+            "block"
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "value"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "type": {
+          "enum": [
+            "contains",
+            "regex"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "enum": [
+            "block",
+            "flag"
+          ],
+          "default": "block"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "prompt",
+              "tool_result",
+              "tool_call"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

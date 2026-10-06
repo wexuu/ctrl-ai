@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app.kubernetes.io/name: gateway}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: gateway}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app.kubernetes.io/name: gateway}
+      containers:
+        - name: gateway
+          image: ctrl-ai-gateway:dev
+          args: ["--config", "/app/gateway/config.yaml", "--port", "4000"]
+          ports:
+            - {name: http, containerPort: 4000}
+          envFrom:
+            - secretRef: {name: ctrl-ai-secrets}
+          env:
+            - {name: PYTHONPATH, value: /app}
+            - {name: CTRL_AI_POLICY_FILE, value: /app/config/policy.yaml}
+            - {name: CTRL_AI_MODELS_FILE, value: /app/config/models.yaml}
+            - {name: CTRL_AI_TEAMS_FILE, value: /app/config/teams.yaml}
+            - {name: CTRL_AI_SIGNATURES_FILE, value: /app/config/signatures.yaml}
+            - {name: CTRL_AI_MCP_FILE, value: /app/config/mcp.yaml}
+            - {name: CTRL_AI_KEYS_FILE, value: /app/state/keys.json}
+            - {name: CTRL_AI_BREAKGLASS_FILE, value: /app/state/break_glass.json}
+            # The audit log is JSON on stdout; the cluster's log agent ships it (Fluent Bit,
+            # CloudWatch). The dashboard then reads the log store, not a file (future work).
+            - {name: CTRL_AI_AUDIT_LOG, value: /dev/stdout}
+            - {name: CTRL_AI_REDIS_URL, value: "redis://redis:6379/0"}
+            - {name: OTEL_EXPORTER, value: otlp_http}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector:4318"}
+            - {name: OTEL_SERVICE_NAME, value: ctrl-ai-gateway}
+            - {name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT, value: "false"}
+            - {name: JEV_URL, value: "https://api.typesafe.ai/v1/systemone"}
+            # Decision models per role (docs/MODELS.md): "jev", "none" or a LiteLLM model string.
+            - {name: CTRL_AI_CLASSIFIER_MODEL, value: jev}
+            - {name: CTRL_AI_CLASSIFIER_API_BASE, value: ""}
+            - {name: CTRL_AI_CLASSIFIER_TIMEOUT_S, value: "8"}
+            - {name: CTRL_AI_JUDGE_MODEL, value: groq/openai/gpt-oss-safeguard-20b}
+            - {name: CTRL_AI_JUDGE_API_BASE, value: ""}
+            - {name: CTRL_AI_JUDGE_TIMEOUT_S, value: "8"}
+            # Empty: the shadow check uses the judge's model.
+            - {name: CTRL_AI_SHADOW_MODEL, value: ""}
+            - {name: ANTHROPIC_API_BASE, value: "https://api.anthropic.com"}
+            - {name: LITELLM_LOCAL_MODEL_COST_MAP, value: "True"}
+            - {name: TMPDIR, value: /tmp}
+          # Readiness and liveness use LiteLLM's cheap endpoints; never /health, which calls every model.
+          readinessProbe:
+            httpGet: {path: /health/readiness, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health/liveliness, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 500m, memory: 768Mi}
+            limits: {cpu: "2", memory: 1.5Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: config, mountPath: /app/config, readOnly: true}
+            - {name: gateway-config, mountPath: /app/gateway, readOnly: true}
+            - {name: state, mountPath: /app/state, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: ctrl-ai-config}
+        - name: gateway-config
+          configMap: {name: ctrl-ai-gateway-config}
+        - name: state
+          persistentVolumeClaim: {claimName: ctrl-ai-state}
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  selector: {app.kubernetes.io/name: gateway}
+  ports:
+    - {name: http, port: 4000, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: gateway}
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: gateway}

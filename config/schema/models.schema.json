@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/models.schema.json",
+  "title": "ctrl-ai model catalogue (config/models.yaml)",
+  "description": "The organisation's list of models and their governance. The gateway enforces it; the admin panel edits it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["models"],
+  "properties": {
+    "models": {"type": "array", "items": {"$ref": "#/$defs/model"}},
+    "unmanaged_channels": {
+      "type": "array",
+      "description": "AI channels no gateway can route, stated as policy with their control.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "control"],
+        "properties": {
+          "name": {"type": "string"},
+          "control": {"enum": ["blocked_by_network", "vendor_enterprise_policy", "accepted_risk"]},
+          "note": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "provider", "status", "data_class_max", "teams"],
+      "properties": {
+        "id": {"type": "string", "description": "The model name clients send, as in deploy/litellm/config.yaml model_list (model_name). A trailing * is a prefix match, e.g. claude-*."},
+        "display_name": {"type": "string"},
+        "provider": {"type": "string"},
+        "status": {"enum": ["approved", "trial", "deprecated", "banned"]},
+        "sunset": {"type": "string", "format": "date", "description": "For deprecated models: after this date requests are rerouted to equivalent."},
+        "data_class_max": {"enum": ["public", "internal", "confidential"]},
+        "region": {"enum": ["eu", "us", "global"]},
+        "teams": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "Team ids, or [\"*\"] for every team."},
+        "price": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input_per_mtok", "output_per_mtok"],
+          "properties": {
+            "input_per_mtok": {"type": "number", "minimum": 0},
+            "output_per_mtok": {"type": "number", "minimum": 0},
+            "shadow": {"type": "boolean", "description": "True for free-tier use: the price is the list price, not what the organisation pays."}
+          }
+        },
+        "equivalent": {"type": "string", "description": "Model id to reroute to when this one is not allowed."},
+        "fallbacks": {"type": "array", "items": {"type": "string"}, "description": "Ordered model ids to try when this model's provider fails."},
+        "owner": {"type": "string"},
+        "reviewed": {"type": "string", "format": "date"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

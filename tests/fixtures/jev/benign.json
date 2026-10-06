@@ -1,0 +1,9 @@
+{
+  "_note": "Written by hand to match the documented response format (docs.typesafe.ai api.md, noul.md). Not recorded from a live call; the numbers are invented.",
+  "model": "jev-1.13.0",
+  "answers": {
+    "instruction_override": {"type": "noul", "noul": 0.02},
+    "harmful_misuse": {"type": "noul", "noul": 0.01}
+  },
+  "usage": {"input_tokens": 262, "output_tokens": 39}
+}

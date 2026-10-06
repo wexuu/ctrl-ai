@@ -1,0 +1,4 @@
+{"type":"admin","ts":"2026-10-04T07:59:00.000Z","actor":"admin","action":"login","target":null,"version_before":null,"version_after":null,"reason":null}
+{"type":"admin","ts":"2026-10-04T08:00:30.000Z","actor":"admin","action":"policy.save","target":"policy.yaml","version_before":"9f8e7d6c","version_after":"a1b2c3d4","reason":"Enable pii pack"}
+{"type":"admin","ts":"2026-10-04T08:02:30.000Z","actor":"admin","action":"key.issue","target":"k_11223344","version_before":null,"version_after":null,"reason":"payments-dev onboarding"}
+{"type":"admin","ts":"2026-10-04T08:20:00.000Z","actor":"admin","action":"break_glass.revoke","target":"bg_1a2b3c4d","version_before":null,"version_after":null,"reason":"Incident resolved"}

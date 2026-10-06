@@ -1,0 +1,31 @@
+# Amazon EKS: images from ECR, ALB Ingress with TLS (ACM), IRSA service account, secrets from AWS
+# Secrets Manager through External Secrets Operator, Redis on ElastiCache, EFS for the state volume.
+# Replace the <...> placeholders with your AWS account's values.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ingress.yaml
+  - serviceaccount.yaml
+  - externalsecret.yaml
+images:
+  - name: ctrl-ai-gateway
+    newName: <account>.dkr.ecr.eu-central-1.amazonaws.com/ctrl-ai-gateway
+    newTag: "1.0.0"
+  - name: ctrl-ai-ui
+    newName: <account>.dkr.ecr.eu-central-1.amazonaws.com/ctrl-ai-ui
+    newTag: "1.0.0"
+patches:
+  - target: {kind: Deployment, name: gateway}
+    patch: |-
+      - {op: add, path: /spec/template/spec/serviceAccountName, value: ctrl-ai-gateway}
+      - op: replace
+        path: /spec/template/spec/containers/0/env/9
+        value: {name: CTRL_AI_REDIS_URL, value: "rediss://<elasticache-endpoint>:6379/0"}
+  - target: {kind: HorizontalPodAutoscaler, name: gateway}
+    patch: |-
+      - {op: replace, path: /spec/minReplicas, value: 3}
+      - {op: replace, path: /spec/maxReplicas, value: 24}
+  - target: {kind: PersistentVolumeClaim, name: ctrl-ai-state}
+    patch: |-
+      - {op: add, path: /spec/storageClassName, value: efs-sc}

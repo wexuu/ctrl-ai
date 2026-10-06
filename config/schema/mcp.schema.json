@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/mcp.schema.json",
+  "title": "Approved MCP tool servers (config/mcp.yaml)",
+  "description": "Read by the gateway-side checks (src/ctrl_ai/mcp/); the admin panel shows it and re-pins tools.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["servers"],
+  "properties": {
+    "servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url", "teams", "status"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$"},
+          "url": {"type": "string"},
+          "transport": {"enum": ["http", "sse", "stdio"]},
+          "status": {"enum": ["approved", "suspended", "banned"]},
+          "owner": {"type": "string"},
+          "teams": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "allowed"],
+              "properties": {
+                "name": {"type": "string"},
+                "allowed": {"type": "boolean"},
+                "description_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$", "description": "Pinned hash of name + description + input schema (canonical JSON) at approval."}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/keys.schema.json",
+  "title": "Gateway keys (state/keys.json). Runtime state, never committed.",
+  "description": "Written by the admin panel, read by the gateway's auth. Only hashes are stored: sha256 hex of the full key string.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "hash", "team", "created", "revoked"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^k_[a-f0-9]{8}$"},
+          "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "prefix": {"type": "string", "description": "First 12 characters of the key, for recognising it in the panel."},
+          "team": {"type": "string"},
+          "user": {"type": "string"},
+          "label": {"type": "string"},
+          "created": {"type": "string", "format": "date-time"},
+          "expires": {"type": ["string", "null"], "format": "date-time"},
+          "revoked": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ctrl-ai/signatures.schema.json",
+  "title": "Known-exploit signature feed (config/signatures.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["feed_version", "signatures"],
+  "properties": {
+    "feed_version": {"type": "string"},
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "source", "pattern", "action", "tests"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^sig-[a-z0-9-]+$"},
+          "category": {"enum": ["code_execution", "unsafe_deserialization", "supply_chain", "credential_exfiltration", "prompt_injection"]},
+          "source": {"type": "string", "description": "Advisory URL or CVE id the signature is based on."},
+          "applies_to": {"type": "array", "items": {"enum": ["prompt", "tool_result", "tool_call"]}, "uniqueItems": true},
+          "pattern": {"type": "string", "minLength": 1, "description": "Python regular expression."},
+          "action": {"enum": ["block", "flag"]},
+          "guidance": {"type": "string"},
+          "tests": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["match", "near_miss"],
+            "properties": {"match": {"type": "string"}, "near_miss": {"type": "string"}}
+          }
+        }
+      }
+    }
+  }
+}

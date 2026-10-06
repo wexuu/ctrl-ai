@@ -1,0 +1,55 @@
+# ctrl-ai DEGRADED LANE (break-glass): a minimal second gateway for when the main one is
+# down. Same approved models; deterministic checks only (no Jev, no AI judge, no MCP, no
+# OpenTelemetry), set by the lane policy deploy/lane/policy.lane.yaml (CTRL_AI_POLICY_FILE). Secrets
+# and customer-data rules stay on. Started only with `make lane-up` (compose profile "lane");
+# time-boxed and logged: see docs/DEPLOY.md, "Degraded lane runbook".
+model_list:
+  - model_name: claude-opus-5-5
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE   # bare origin; LiteLLM appends /v1/messages
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+  # Any other claude-* name a client asks for. Claude Code requests whatever model
+  # its user has selected; without this entry those requests fail.
+  - model_name: "claude-*"
+    litellm_params:
+      model: "anthropic/claude-*"
+      api_base: os.environ/ANTHROPIC_API_BASE
+
+  # Free-tier providers, used by the staging chat. Not Claude: Claude Code keeps
+  # using the subscription through the claude-* entries above.
+  # Model ids as listed in the providers' documentation.
+  - model_name: chat-mistral
+    litellm_params:
+      model: mistral/mistral-small-2603
+      api_key: os.environ/MISTRAL_API_KEY
+  - model_name: chat-groq
+    litellm_params:
+      model: groq/openai/gpt-oss-20b
+      api_key: os.environ/GROQ_API_KEY
+
+guardrails:
+  - guardrail_name: ctrl-ai
+    litellm_params:
+      guardrail: ctrl_ai.adapters.litellm.guardrail.CtrlAiGuardrail
+      mode: pre_call
+      default_on: true
+
+litellm_settings:
+  callbacks: ["ctrl_ai.adapters.litellm.logger.ctrl_ai_logger"]
+  turn_off_message_logging: true
+  # Strict limits while the main gateway (with its budgets and loop counters) is down.
+  max_budget: 50
+  budget_duration: 1d
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  forward_client_headers_to_llm_api: true

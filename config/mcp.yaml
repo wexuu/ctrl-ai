@@ -1,0 +1,33 @@
+# Approved MCP tool servers. Schema: config/schema/mcp.schema.json.
+# Tool descriptions are pinned by hash (description_sha256 = SHA-256 of canonical JSON of name +
+# description + input schema); a changed description suspends the tool until it is reviewed and
+# re-pinned in the admin panel (Tools page). The gateway reloads this file live.
+servers:
+  - name: tickets
+    url: http://mcp-stub:9403/mcp
+    transport: http
+    status: approved
+    owner: ai-platform
+    teams: [product-dev, platform-ops]
+    tools:
+      - name: get_issue
+        allowed: true
+        description_sha256: c247a197280f9c34e391693c429a57a89a34cb4d3305c3524a769fda5d954d28
+      - name: read_page
+        allowed: true
+        description_sha256: 306fd0a05c5ad4ad73d90750bf76254db506cd11d1a7be059884aa1eb31ce8a5
+      - name: export_customers
+        allowed: false
+  - name: confluence
+    url: http://mcp-stub-docs:9404/mcp
+    transport: http
+    status: approved
+    owner: ai-platform
+    teams: ["*"]
+    tools:
+      - name: search_docs
+        allowed: true
+        description_sha256: 26d53acb436eda8175d510baa32e8dd3a16ab2251f24126c0ab677af71b137bd
+      - name: get_runbook
+        allowed: true
+        description_sha256: 01903f5e52ab636a74c5f6bb2a6ccdc7df014e6788ceb367d0a466fca6115f64

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit log · ctrl-ai</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/shared.css">
+</head>
+<body class="app">
+  <header id="nav"></header>
+  <main class="page">
+    <div class="page-head"><div>
+      <h1>Jev audit log</h1>
+      <p>Every request the gateway decided, newest first, with Jev's attack score (0 harmless, 1 attack). Click a row for the full record. Prompt text is never stored.</p>
+    </div></div>
+    <section class="panel log" aria-label="Audit log">
+      <div class="toolbar">
+        <label>Decision
+          <select id="f-decision">
+            <option value="">all</option><option value="allow">allow</option><option value="block">block</option>
+          </select>
+        </label>
+        <label>Jev
+          <select id="f-jev">
+            <option value="">all</option><option>ok</option><option>skipped</option>
+            <option>unavailable</option><option>error</option><option>disabled</option>
+          </select>
+        </label>
+        <label>Model <select id="f-model"><option value="">all</option></select></label>
+        <span id="log-state" class="muted"></span>
+      </div>
+      <div id="totals" class="totals"></div>
+      <div class="table-wrap">
+        <table id="log-table">
+          <thead>
+            <tr><th>Time</th><th>Model</th><th>Decision</th><th>Rule</th><th>Jev score</th><th>Judge</th><th>Guard ms</th><th>Tokens</th><th>Cost</th></tr>
+          </thead>
+          <tbody id="log-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/static/audit.js"></script>
+  <script type="module" src="/static/audit_nav.js"></script>
+</body>
+</html>
