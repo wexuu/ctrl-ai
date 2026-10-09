@@ -17,6 +17,16 @@ profile_file = $(if $(wildcard config/profiles/$(PROFILE)/$(1).yaml),/app/config
 PROFILE_ENV := $(if $(PROFILE),CTRL_AI_POLICY_FILE=$(call profile_file,policy) CTRL_AI_TEAMS_FILE=$(call profile_file,teams) \
 	CTRL_AI_MODELS_FILE=$(call profile_file,models) CTRL_AI_MCP_FILE=$(call profile_file,mcp),)
 
+# The admin container writes files in this checkout (config/, state/, logs/, or tests/e2e/runtime/
+# for the test stack), so it runs as the invoking user. A value on the command line or in the
+# environment wins; for `make up` a CTRL_AI_UID / CTRL_AI_GID set in .env wins over the default.
+CTRL_AI_UID ?= $(shell id -u)
+CTRL_AI_GID ?= $(shell id -g)
+export CTRL_AI_UID CTRL_AI_GID
+# Compose prefers the shell environment to .env, so `make up` passes the .env values on again
+# when the ids above are only the defaults.
+DOTENV_IDS := $(if $(filter file,$(origin CTRL_AI_UID)),$(shell sed -n 's/^\(CTRL_AI_[UG]ID=[0-9][0-9]*\)[[:space:]]*$$/\1/p' .env 2>/dev/null))
+
 # Test stack. Project name and ports can be changed so two stacks run side by side:
 #   make test CTRL_AI_TEST_PROJECT=ctrl-ai-a CTRL_AI_GATEWAY_PORT=4200 CTRL_AI_UI_PORT=4300 CTRL_AI_STUB_ANTHROPIC_PORT=9201 CTRL_AI_STUB_JEV_PORT=9202
 CTRL_AI_TEST_PROJECT ?= ctrl-ai-test
@@ -87,7 +97,7 @@ up: ## Start the gateway with .env and wait until it is healthy (PROFILE=bank: a
 	@mkdir -p state/history && test -f state/keys.json || echo '{"keys": []}' > state/keys.json
 	@test -f state/break_glass.json || echo '{"overrides": []}' > state/break_glass.json
 	@touch logs/admin.jsonl
-	$(PROFILE_ENV) $(COMPOSE) up -d --wait
+	$(PROFILE_ENV) $(DOTENV_IDS) $(COMPOSE) up -d --wait
 
 down: ## Stop the gateway
 	$(COMPOSE) down

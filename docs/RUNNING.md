@@ -118,6 +118,7 @@ Nothing is checked or audited in this mode.
 - **`401 Invalid or revoked ctrl-ai key`**: the gateway key is wrong, revoked, expired or missing. In subscription mode this usually means `ANTHROPIC_CUSTOM_HEADERS` is not set in the shell Claude Code runs in. Keys are issued on the Teams page and stored as hashes in `state/keys.json`.
 - **`Invalid model name`**: the `claude-*` wildcard entry is missing from the config. Claude Code asks for whatever model its user has selected.
 - **`HEAD /api/hello` answered 404 in the gateway log**: harmless. Claude Code probes for it.
+- **Saving in the admin panel fails with HTTP 500 and the `ui` log shows `PermissionError`**: the admin container runs as a user who cannot write `config/` or `state/`. `make up` runs it as you (`id -u`, `id -g`); a `CTRL_AI_UID` / `CTRL_AI_GID` in `.env` or the environment overrides that and must match the owner of the checkout.
 - **Files in `logs/` owned by root**: the container created them. Use `make up`, which creates `logs/audit.jsonl` as your user first.
 - **`required variable LITELLM_MASTER_KEY is missing a value`**: there is no `.env`, or the key is not set in it.
 - **A refused-key line in the gateway log after `make smoke`**: expected; the smoke check sends a request without a key and one with a wrong key on purpose.

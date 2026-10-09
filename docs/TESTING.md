@@ -52,7 +52,7 @@ make test CTRL_AI_TEST_PROJECT=ctrl-ai-b CTRL_AI_GATEWAY_PORT=4200 CTRL_AI_UI_PO
   CTRL_AI_STUB_ANTHROPIC_PORT=9201 CTRL_AI_STUB_JEV_PORT=9202
 ```
 
-`make test-up` refuses to start when one of its ports is taken. `tests/e2e/runtime/` (git-ignored) holds the stack's configuration copies, state and audit log while it runs.
+`make test-up` refuses to start when one of its ports is taken. `tests/e2e/runtime/` (git-ignored) holds the stack's configuration copies, state and audit log while it runs. `make test-up` creates those files as you and runs the admin container as you (`id -u`, `id -g`, passed as `CTRL_AI_UID` / `CTRL_AI_GID`), so the admin panel can write them; the test stack ignores any ids set in `.env`.
 
 ## Live checks
 

@@ -109,7 +109,7 @@ services:
       CTRL_AI_XAI_REPORTS: /app/reports/xai
       CTRL_AI_XAI_DATASET: /app/datasets/xai
     # Runs as the host user, so files the admin panel writes in config/ and state/ stay
-    # editable on the host. Set CTRL_AI_UID/CTRL_AI_GID in .env if your user id is not 1000.
+    # editable on the host. make passes the invoking user's ids (CTRL_AI_UID/CTRL_AI_GID).
     user: "${CTRL_AI_UID:-1000}:${CTRL_AI_GID:-1000}"
     volumes:
       - ./src/ctrl_ai:/app/ctrl_ai:ro
