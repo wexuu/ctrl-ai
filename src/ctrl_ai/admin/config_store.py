@@ -50,7 +50,7 @@ HEADERS = {
 #           what a high semantic score does, what happens when Jev is down.
 # rule_packs  built-in detectors: pii (e-mail, phone, cards, IBAN), pl (PESEL,
 #           NIP, NRB account), secrets (keys and tokens), signatures (known
-#           exploit feed). docs/CONFIGURATION.md lists their rule ids.
+#           exploit feed); rule ids in src/ctrl_ai/detect/packs.py.
 # rules     custom rules, tried top to bottom; an entry with a pack rule's id
 #           overrides that pack rule (action, enabled).
 #             id     a unique name; it appears in the refusal and the audit log

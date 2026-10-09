@@ -50,7 +50,7 @@ spec:
             capabilities: {drop: [ALL]}
           volumeMounts:
             # In the cluster the configuration is GitOps-managed (ConfigMap, read-only): the panel
-            # shows it and validates changes; saving goes through a pull request (see docs/DEPLOY.md).
+            # shows it and validates changes; saving goes through a pull request.
             - {name: config, mountPath: /app/config, readOnly: true}
             - {name: state, mountPath: /app/state}
             - {name: tmp, mountPath: /tmp}

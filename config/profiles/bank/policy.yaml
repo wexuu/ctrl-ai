@@ -1,4 +1,4 @@
-# ctrl-ai policy for the bank demo profile (a fictional Polish bank; docs/CONFIGURATION.md).
+# ctrl-ai policy for the bank demo profile (a fictional Polish bank).
 # Schema: config/schema/policy.schema.json.
 #
 # The gateway re-reads this file whenever it changes: save it and the next

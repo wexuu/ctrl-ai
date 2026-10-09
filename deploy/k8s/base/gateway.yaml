@@ -51,7 +51,7 @@ spec:
             - {name: OTEL_SERVICE_NAME, value: ctrl-ai-gateway}
             - {name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT, value: "false"}
             - {name: JEV_URL, value: "https://api.typesafe.ai/v1/systemone"}
-            # Decision models per role (docs/MODELS.md): "jev", "none" or a LiteLLM model string.
+            # Decision models per role: "jev", "none" or a LiteLLM model string.
             - {name: CTRL_AI_CLASSIFIER_MODEL, value: jev}
             - {name: CTRL_AI_CLASSIFIER_API_BASE, value: ""}
             - {name: CTRL_AI_CLASSIFIER_TIMEOUT_S, value: "8"}

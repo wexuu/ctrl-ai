@@ -2,7 +2,8 @@
 # down. Same approved models; deterministic checks only (no Jev, no AI judge, no MCP, no
 # OpenTelemetry), set by the lane policy deploy/lane/policy.lane.yaml (CTRL_AI_POLICY_FILE). Secrets
 # and customer-data rules stay on. Started only with `make lane-up` (compose profile "lane");
-# time-boxed and logged: see docs/DEPLOY.md, "Degraded lane runbook".
+# run only while the main gateway is down (stop it with `make lane-down`); its requests are
+# logged in the same audit log.
 model_list:
   - model_name: claude-opus-5-5
     litellm_params:

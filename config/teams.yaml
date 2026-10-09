@@ -1,5 +1,5 @@
 # Departments and teams of the organisation. Schema: config/schema/teams.schema.json.
-# This is an example organisation; replace it with your own (docs/CONFIGURATION.md).
+# This is an example organisation; replace it with your own.
 # Gateway keys are issued per team from the admin panel and stored as hashes in state/keys.json.
 # Edited from the admin panel (Teams page); the gateway picks changes up without a restart.
 

@@ -148,12 +148,12 @@ k8s-validate: ## Render both overlays and check every object (no cluster needed)
 lane-up: ## Start the break-glass degraded lane on 127.0.0.1:$(CTRL_AI_LANE_PORT) (deterministic checks only)
 	@mkdir -p logs && touch logs/audit.jsonl
 	CTRL_AI_LANE_PORT=$(CTRL_AI_LANE_PORT) $(COMPOSE) -p $(LANE_PROJECT) --profile lane up -d --wait gateway-lane
-	@echo "Degraded lane on http://localhost:$(CTRL_AI_LANE_PORT). Runbook: docs/DEPLOY.md. Stop it with make lane-down."
+	@echo "Degraded lane on http://localhost:$(CTRL_AI_LANE_PORT). Stop it with make lane-down."
 
 lane-down: ## Stop the degraded lane
 	CTRL_AI_LANE_PORT=$(CTRL_AI_LANE_PORT) $(COMPOSE) -p $(LANE_PROJECT) --profile lane down
 
-# ---------------------------------------------------------------- Jev trust audit (docs/XAI.md)
+# ---------------------------------------------------------------- Jev trust audit
 # Audit-only: none of these targets change policy or live decisions.
 
 xai-audit: ## Score the synthetic casebook with Jev and the second model (needs JEV_API_KEY, GROQ_API_KEY; max 200 calls)

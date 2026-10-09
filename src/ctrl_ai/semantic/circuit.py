@@ -3,7 +3,7 @@
 closed: calls go through; ``failures_to_open`` failures within ``window_s`` open it.
 open: calls are skipped at once (verdict ``error: circuit_open``); after ``cooldown_s`` one
 probe is let through (half-open). The probe's success closes it, its failure re-opens it.
-State is per gateway process (see docs/GATEWAY.md: not shared through Redis yet).
+State is per gateway process; it is not shared through Redis yet.
 """
 
 from __future__ import annotations

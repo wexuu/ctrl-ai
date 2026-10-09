@@ -43,7 +43,7 @@
         ]
       },
       "uniqueItems": true,
-      "description": "Built-in detector packs switched on. Their rule ids are defined in src/ctrl_ai/detect/packs.py (docs/CONFIGURATION.md lists them)."
+      "description": "Built-in detector packs switched on. Their rule ids are defined in src/ctrl_ai/detect/packs.py."
     },
     "rules": {
       "type": "array",

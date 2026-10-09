@@ -1,5 +1,5 @@
 # ctrl-ai policy: what the gateway checks, and what it does about it.
-# Schema: config/schema/policy.schema.json. docs/CONFIGURATION.md describes every section.
+# Schema: config/schema/policy.schema.json; every section is described below.
 #
 # The gateway re-reads this file whenever it changes: save it and the next request uses it,
 # no restart. If the file is invalid it is ignored and the last valid version stays active.
@@ -22,7 +22,7 @@
 # jev         the semantic classifier: thresholds for review and block, and accept_below.
 # judge       the second model: confirms the classifier's rejections and decides alone when
 #             the classifier is down or off; shadow re-checks a share of what the classifier
-#             accepted (misses, drift). docs/MODELS.md describes the models.
+#             accepted (misses, drift). The models are chosen per role in CTRL_AI_*_MODEL.
 # masking     personal data rewritten before a request leaves for an external provider.
 
 version: 2

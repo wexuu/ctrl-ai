@@ -40,7 +40,7 @@ services:
       CTRL_AI_REDIS_URL: ${CTRL_AI_REDIS_URL:-redis://redis:6379/0}
       CTRL_AI_BREAKGLASS_SECRET: ${CTRL_AI_BREAKGLASS_SECRET:-}
       CTRL_AI_MASKING_SECRET: ${CTRL_AI_MASKING_SECRET:-}
-      # Decision models per role (docs/MODELS.md): "jev", "none" or a LiteLLM model string.
+      # Decision models per role: "jev", "none" or a LiteLLM model string.
       CTRL_AI_CLASSIFIER_MODEL: ${CTRL_AI_CLASSIFIER_MODEL:-jev}
       CTRL_AI_CLASSIFIER_API_BASE: ${CTRL_AI_CLASSIFIER_API_BASE:-}
       CTRL_AI_CLASSIFIER_TIMEOUT_S: ${CTRL_AI_CLASSIFIER_TIMEOUT_S:-8}

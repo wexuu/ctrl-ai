@@ -1,7 +1,7 @@
 """HTML pages of the admin panel and the dashboard.
 
 Open access: the pages are open (no sign-in). In production the organisation's single sign-on sits in
-front of them and `ctrl_ai.admin.auth.current_admin` resolves the user and roles (docs/ADMIN.md).
+front of them and `ctrl_ai.admin.auth.current_admin` resolves the user and roles.
 """
 
 from __future__ import annotations
